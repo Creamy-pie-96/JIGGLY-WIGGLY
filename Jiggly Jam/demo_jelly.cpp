@@ -91,12 +91,12 @@ int main()
             // pressure controls: [ decrease, ] increase
             if (ev.type == sf::Event::KeyPressed && ev.key.code == sf::Keyboard::LBracket)
             {
-                jelly.pressure = std::max(0.f, jelly.pressure - 0.05f);
+                jelly.pressure = std::max(0.f, jelly.pressure - 0.025f);
                 std::cout << "pressure = " << jelly.pressure << std::endl;
             }
             if (ev.type == sf::Event::KeyPressed && ev.key.code == sf::Keyboard::RBracket)
             {
-                jelly.pressure = std::min(5.f, jelly.pressure + 0.05f);
+                jelly.pressure = std::min(5.f, jelly.pressure + 0.025f);
                 std::cout << "pressure = " << jelly.pressure << std::endl;
             }
 

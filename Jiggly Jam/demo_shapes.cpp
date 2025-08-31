@@ -29,7 +29,7 @@ int main()
         centers[1] + sf::Vector2f(60.f, 0.f),
         centers[1] + sf::Vector2f(-40.f, 60.f),
     };
-    jellies[1].create_from_points(tri);
+    jellies[1].create_from_points_resampled(tri, 24);
 
     // rectangle
     std::vector<sf::Vector2f> rect = {
@@ -38,7 +38,7 @@ int main()
         centers[2] + sf::Vector2f(60.f, 40.f),
         centers[2] + sf::Vector2f(-60.f, 40.f),
     };
-    jellies[2].create_from_points(rect);
+    jellies[2].create_from_points_resampled(rect, 24);
 
     // polygon (star-ish)
     std::vector<sf::Vector2f> poly = {
@@ -50,7 +50,7 @@ int main()
         centers[3] + sf::Vector2f(-40.f, 70.f),
         centers[3] + sf::Vector2f(-70.f, 0.f),
     };
-    jellies[3].create_from_points(poly);
+    jellies[3].create_from_points_resampled(poly, 24);
 
     // default tuning
     for (auto &j : jellies)
@@ -77,8 +77,8 @@ int main()
     const float jump_impulse = 700.f;
 
     int selected = 0;
-    std::cout << "Shapes demo: Select shape with keys 1..4. Use Left/Right/Space to nudge/jump.\n";
-    std::cout << "Tuning: +/- stiffness, [/] pressure, Num1/Num2 ring, Num3/Num4 spoke, D/F damping\n";
+    std::cout << "Shapes demo: Select shape with Left/Right arrows. Use Left/Right to nudge, Space to jump.\n";
+    std::cout << "Tuning: +/- stiffness, [/] pressure, 1/2 ring stiffness, 3/4 spoke stiffness, D/F damping\n";
 
     while (window.isOpen())
     {
@@ -97,26 +97,16 @@ int main()
                     jellies[selected].apply_force(sf::Vector2f(0.f, -jump_impulse), jellies[selected].points[0].pos, jellies[selected].get_radius() * 1.5f, dt);
                 }
 
-                // select shape with digit keys (top row)
-                if (ev.key.code == sf::Keyboard::Num1)
+                // select shape with arrow keys
+                if (ev.key.code == sf::Keyboard::Right)
                 {
-                    selected = 0;
-                    std::cout << "selected 1\n";
+                    selected = (selected + 1) % (int)jellies.size();
+                    std::cout << "selected " << (selected + 1) << "\n";
                 }
-                if (ev.key.code == sf::Keyboard::Num2)
+                if (ev.key.code == sf::Keyboard::Left)
                 {
-                    selected = 1;
-                    std::cout << "selected 2\n";
-                }
-                if (ev.key.code == sf::Keyboard::Num3)
-                {
-                    selected = 2;
-                    std::cout << "selected 3\n";
-                }
-                if (ev.key.code == sf::Keyboard::Num4)
-                {
-                    selected = 3;
-                    std::cout << "selected 4\n";
+                    selected = (selected - 1 + (int)jellies.size()) % (int)jellies.size();
+                    std::cout << "selected " << (selected + 1) << "\n";
                 }
 
                 // tuning keys operate on currently selected jelly
@@ -132,13 +122,35 @@ int main()
                 }
                 if (ev.key.code == sf::Keyboard::LBracket)
                 {
-                    jellies[selected].pressure = std::max(0.f, jellies[selected].pressure - 0.05f);
+                    jellies[selected].pressure = std::max(0.f, jellies[selected].pressure - 0.025f);
                     std::cout << "pressure=" << jellies[selected].pressure << "\n";
                 }
                 if (ev.key.code == sf::Keyboard::RBracket)
                 {
-                    jellies[selected].pressure = std::min(5.f, jellies[selected].pressure + 0.05f);
+                    jellies[selected].pressure = std::min(5.f, jellies[selected].pressure + 0.025f);
                     std::cout << "pressure=" << jellies[selected].pressure << "\n";
+                }
+                // ring stiffness: 1 increase, 2 decrease
+                if (ev.key.code == sf::Keyboard::Num1)
+                {
+                    jellies[selected].stiffness_ring = std::min(1.f, jellies[selected].stiffness_ring + 0.05f);
+                    std::cout << "stiffness_ring=" << jellies[selected].stiffness_ring << "\n";
+                }
+                if (ev.key.code == sf::Keyboard::Num2)
+                {
+                    jellies[selected].stiffness_ring = std::max(0.f, jellies[selected].stiffness_ring - 0.05f);
+                    std::cout << "stiffness_ring=" << jellies[selected].stiffness_ring << "\n";
+                }
+                // spoke stiffness: 3 increase, 4 decrease
+                if (ev.key.code == sf::Keyboard::Num3)
+                {
+                    jellies[selected].stiffness_spoke = std::min(1.f, jellies[selected].stiffness_spoke + 0.05f);
+                    std::cout << "stiffness_spoke=" << jellies[selected].stiffness_spoke << "\n";
+                }
+                if (ev.key.code == sf::Keyboard::Num4)
+                {
+                    jellies[selected].stiffness_spoke = std::max(0.f, jellies[selected].stiffness_spoke - 0.05f);
+                    std::cout << "stiffness_spoke=" << jellies[selected].stiffness_spoke << "\n";
                 }
                 // ring/spoke via other keys can be added later
                 if (ev.key.code == sf::Keyboard::D)

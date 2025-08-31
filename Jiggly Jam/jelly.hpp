@@ -34,7 +34,7 @@ public:
 
     std::vector<Point> points;
     std::vector<Spring> springs;
-    int iterations = 6;
+    int iterations = 10;
     // global stiffness multiplier for constraint correction (0..1)
     float stiffness = 1.f;
     // separate multipliers
@@ -56,6 +56,8 @@ public:
     void clear();
     void create_circle(int n, float r, sf::Vector2f c);
     void create_from_points(const std::vector<sf::Vector2f> &pts);
+    // create from points but resample edges to have approximately target peripheral points
+    void create_from_points_resampled(const std::vector<sf::Vector2f> &pts, int targetPerimeterPoints);
 
     float get_radius() const { return radius; }
 
@@ -180,6 +182,49 @@ void Jelly::create_from_points(const std::vector<sf::Vector2f> &pts)
     }
     // compute and store target area for pressure
     targetArea = compute_area(points);
+}
+
+void Jelly::create_from_points_resampled(const std::vector<sf::Vector2f> &pts, int targetPerimeterPoints)
+{
+    if (pts.size() < 3)
+    {
+        create_from_points(pts);
+        return;
+    }
+
+    // compute edge lengths and total
+    int m = (int)pts.size();
+    std::vector<float> edgeLen(m);
+    float total = 0.f;
+    for (int i = 0; i < m; ++i)
+    {
+        int j = (i + 1) % m;
+        sf::Vector2f d = pts[j] - pts[i];
+        edgeLen[i] = std::sqrt(d.x * d.x + d.y * d.y);
+        total += edgeLen[i];
+    }
+
+    // allocate points proportionally on edges
+    std::vector<sf::Vector2f> res;
+    for (int i = 0; i < m; ++i)
+    {
+        int j = (i + 1) % m;
+        float portion = edgeLen[i] / total;
+        int count = std::max(1, (int)std::round(portion * targetPerimeterPoints));
+        for (int k = 0; k < count; ++k)
+        {
+            float t = float(k) / float(count);
+            res.push_back(pts[i] + (pts[j] - pts[i]) * t);
+        }
+    }
+
+    // ensure we have at least targetPerimeterPoints
+    while ((int)res.size() < targetPerimeterPoints)
+    {
+        res.push_back(pts[0]);
+    }
+
+    create_from_points(res);
 }
 
 void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
