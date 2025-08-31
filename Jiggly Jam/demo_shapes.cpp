@@ -168,11 +168,11 @@ int main()
             if (inputForce.x != 0.f)
                 jellies[selected].apply_force(inputForce * dt, jellies[selected].points[0].pos, jellies[selected].get_radius() * 2.f);
 
-            // continuous jump while holding Space: use impulse form for consistent Δv
+            // continuous jump while holding Space
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
             {
-                const float hold_jump_impulse = 200.f;
-                jellies[selected].apply_force(sf::Vector2f(0.f, -hold_jump_impulse), jellies[selected].points[0].pos, jellies[selected].get_radius() * 1.2f, dt);
+                const float hold_jump_force = 120000.f;
+                jellies[selected].apply_force(sf::Vector2f(0.f, -hold_jump_force), jellies[selected].points[0].pos, jellies[selected].get_radius() * 1.2f);
             }
 
             for (auto &j : jellies)

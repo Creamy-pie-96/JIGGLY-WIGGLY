@@ -154,11 +154,11 @@ int main()
             if (inputForce.x != 0.f)
                 jelly.apply_force(inputForce * dt, jelly.points[0].pos, jelly.get_radius() * 2.f);
 
-            // continuous jump while holding Space: apply small impulse per substep for reliable velocity change
+            // continuous jump while holding Space: apply an upward local force
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
             {
-                const float hold_jump_impulse = 200.f; // small impulse per substep
-                jelly.apply_force(sf::Vector2f(0.f, -hold_jump_impulse), jelly.points[0].pos, jelly.get_radius() * 1.2f, dt);
+                const float hold_jump_force = 120000.f; // tune this value
+                jelly.apply_force(sf::Vector2f(0.f, -hold_jump_force), jelly.points[0].pos, jelly.get_radius() * 1.2f);
             }
 
             jelly.update(dt);

@@ -288,17 +288,7 @@ void Jelly::apply_force(const sf::Vector2f &F_total, const sf::Vector2f &at, flo
         sumw += w[i];
     }
     if (sumw <= 1e-6f)
-    {
-        // fallback: if no weighted points (small radius or numerical issue),
-        // apply whole impulse to center point if available to ensure a response
-        if (!points.empty() && !points[0].locked)
-        {
-            // apply equivalent acceleration to center point
-            sf::Vector2f a = F_total / points[0].mass;
-            points[0].acc += a;
-        }
         return;
-    }
 
     for (size_t i = 0; i < points.size(); ++i)
     {
@@ -328,8 +318,7 @@ void Jelly::apply_force(const sf::Vector2f &J_total, const sf::Vector2f &at, flo
             continue;
         sf::Vector2f Ji = (w[i] / sumw) * J_total;
         sf::Vector2f dv = Ji / points[i].mass;
-        // encode velocity change in Verlet prev_pos (Δv)
-        points[i].prev_pos -= dv;
+        points[i].prev_pos -= dv * dt;
     }
 }
 
