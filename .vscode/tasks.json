@@ -18,8 +18,7 @@
       "command": "sh",
       "args": ["-c", "exec \"${fileDirname}/${fileBasenameNoExtension}\""],
       "group": "build"
-    }
-    ,
+    },
     {
       "label": "Run Demo (fixed)",
       "type": "shell",

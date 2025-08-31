@@ -19,8 +19,7 @@ int main()
         {250.f, 250.f},
         {550.f, 250.f},
         {850.f, 250.f},
-        {1150.f, 250.f}
-    };
+        {1150.f, 250.f}};
 
     // circle
     jellies[0].create_circle(24, 70.f, centers[0]);
@@ -99,19 +98,59 @@ int main()
                 }
 
                 // select shape with digit keys (top row)
-                if (ev.key.code == sf::Keyboard::Num1) { selected = 0; std::cout << "selected 1\n"; }
-                if (ev.key.code == sf::Keyboard::Num2) { selected = 1; std::cout << "selected 2\n"; }
-                if (ev.key.code == sf::Keyboard::Num3) { selected = 2; std::cout << "selected 3\n"; }
-                if (ev.key.code == sf::Keyboard::Num4) { selected = 3; std::cout << "selected 4\n"; }
+                if (ev.key.code == sf::Keyboard::Num1)
+                {
+                    selected = 0;
+                    std::cout << "selected 1\n";
+                }
+                if (ev.key.code == sf::Keyboard::Num2)
+                {
+                    selected = 1;
+                    std::cout << "selected 2\n";
+                }
+                if (ev.key.code == sf::Keyboard::Num3)
+                {
+                    selected = 2;
+                    std::cout << "selected 3\n";
+                }
+                if (ev.key.code == sf::Keyboard::Num4)
+                {
+                    selected = 3;
+                    std::cout << "selected 4\n";
+                }
 
                 // tuning keys operate on currently selected jelly
-                if (ev.key.code == sf::Keyboard::Add || ev.key.code == sf::Keyboard::Equal) { jellies[selected].stiffness = std::min(1.f, jellies[selected].stiffness + 0.05f); std::cout << "stiffness="<<jellies[selected].stiffness<<"\n"; }
-                if (ev.key.code == sf::Keyboard::Subtract || ev.key.code == sf::Keyboard::Hyphen) { jellies[selected].stiffness = std::max(0.f, jellies[selected].stiffness - 0.05f); std::cout << "stiffness="<<jellies[selected].stiffness<<"\n"; }
-                if (ev.key.code == sf::Keyboard::LBracket) { jellies[selected].pressure = std::max(0.f, jellies[selected].pressure - 0.05f); std::cout<<"pressure="<<jellies[selected].pressure<<"\n"; }
-                if (ev.key.code == sf::Keyboard::RBracket) { jellies[selected].pressure = std::min(5.f, jellies[selected].pressure + 0.05f); std::cout<<"pressure="<<jellies[selected].pressure<<"\n"; }
+                if (ev.key.code == sf::Keyboard::Add || ev.key.code == sf::Keyboard::Equal)
+                {
+                    jellies[selected].stiffness = std::min(1.f, jellies[selected].stiffness + 0.05f);
+                    std::cout << "stiffness=" << jellies[selected].stiffness << "\n";
+                }
+                if (ev.key.code == sf::Keyboard::Subtract || ev.key.code == sf::Keyboard::Hyphen)
+                {
+                    jellies[selected].stiffness = std::max(0.f, jellies[selected].stiffness - 0.05f);
+                    std::cout << "stiffness=" << jellies[selected].stiffness << "\n";
+                }
+                if (ev.key.code == sf::Keyboard::LBracket)
+                {
+                    jellies[selected].pressure = std::max(0.f, jellies[selected].pressure - 0.05f);
+                    std::cout << "pressure=" << jellies[selected].pressure << "\n";
+                }
+                if (ev.key.code == sf::Keyboard::RBracket)
+                {
+                    jellies[selected].pressure = std::min(5.f, jellies[selected].pressure + 0.05f);
+                    std::cout << "pressure=" << jellies[selected].pressure << "\n";
+                }
                 // ring/spoke via other keys can be added later
-                if (ev.key.code == sf::Keyboard::D) { jellies[selected].damping = std::min(0.999f, jellies[selected].damping + 0.005f); std::cout<<"damping="<<jellies[selected].damping<<"\n"; }
-                if (ev.key.code == sf::Keyboard::F) { jellies[selected].damping = std::max(0.9f, jellies[selected].damping - 0.005f); std::cout<<"damping="<<jellies[selected].damping<<"\n"; }
+                if (ev.key.code == sf::Keyboard::D)
+                {
+                    jellies[selected].damping = std::min(0.999f, jellies[selected].damping + 0.005f);
+                    std::cout << "damping=" << jellies[selected].damping << "\n";
+                }
+                if (ev.key.code == sf::Keyboard::F)
+                {
+                    jellies[selected].damping = std::max(0.9f, jellies[selected].damping - 0.005f);
+                    std::cout << "damping=" << jellies[selected].damping << "\n";
+                }
             }
         }
 
@@ -119,8 +158,10 @@ int main()
         accumulator += frameTime;
 
         inputForce = {0.f, 0.f};
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) inputForce.x -= move_force;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) inputForce.x += move_force;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
+            inputForce.x -= move_force;
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
+            inputForce.x += move_force;
 
         while (accumulator >= dt)
         {
@@ -134,7 +175,8 @@ int main()
                 jellies[selected].apply_force(sf::Vector2f(0.f, -hold_jump_impulse), jellies[selected].points[0].pos, jellies[selected].get_radius() * 1.2f, dt);
             }
 
-            for (auto &j : jellies) j.update(dt);
+            for (auto &j : jellies)
+                j.update(dt);
 
             // ground collision
             for (auto &j : jellies)

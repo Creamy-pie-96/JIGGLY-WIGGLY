@@ -327,9 +327,9 @@ void Jelly::apply_force(const sf::Vector2f &J_total, const sf::Vector2f &at, flo
         if (points[i].locked || w[i] == 0.f)
             continue;
         sf::Vector2f Ji = (w[i] / sumw) * J_total;
-    sf::Vector2f dv = Ji / points[i].mass;
-    // encode velocity change in Verlet prev_pos (Δv)
-    points[i].prev_pos -= dv;
+        sf::Vector2f dv = Ji / points[i].mass;
+        // encode velocity change in Verlet prev_pos (Δv)
+        points[i].prev_pos -= dv;
     }
 }
 
