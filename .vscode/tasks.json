@@ -16,7 +16,15 @@
       "label": "Run Application",
       "type": "shell",
       "command": "sh",
-      "args": ["-c", "\"${fileDirname}/${fileBasenameNoExtension}\""],
+      "args": ["-c", "exec \"${fileDirname}/${fileBasenameNoExtension}\""],
+      "group": "build"
+    }
+    ,
+    {
+      "label": "Run Demo (fixed)",
+      "type": "shell",
+      "command": "sh",
+      "args": ["-c", "exec \"${workspaceFolder}/Jiggly Jam/demo_jelly\""],
       "group": "build"
     }
   ]

@@ -12,4 +12,4 @@
 #include <iomanip>
 #include <sstream>
 #include <SFML/System.hpp>
-#include <SFML/Graphics/RenderWindow.hpp>
+#include <SFML/Graphics.hpp>

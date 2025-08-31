@@ -1,6 +1,7 @@
 {
   "files.associations": {
     "algorithm": "cpp",
-    "iomanip": "cpp"
+    "iomanip": "cpp",
+    "random": "cpp"
   }
 }
