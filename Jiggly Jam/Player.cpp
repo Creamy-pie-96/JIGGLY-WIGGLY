@@ -1,62 +1,98 @@
 #include "Player.hpp"
 #include <algorithm>
+#include "jelly.hpp"
 
-// Player implementation guided by demo_jelly.cpp patterns.
-// Movement applies a local force each physics step (scaled by dt).
-// Jump uses the impulse overload so the jelly receives an instantaneous velocity change.
+class Human
+{
 
+public:
+    float s;
+
+private:
+    // 1) explicit landmark positions (example; scale/shift as needed)
+    sf::Vector2f origin{100.f, 100.f};
+    float height;
+    sf::Vector2f HEAD;
+    sf::Vector2f NECK;
+    sf::Vector2f SHO_R;
+    sf::Vector2f ELB_R;
+    sf::Vector2f HAND_R;
+    sf::Vector2f SHO_L;
+    sf::Vector2f ELB_L;
+    sf::Vector2f HAND_L;
+    sf::Vector2f WAIST_L;
+    sf::Vector2f HIP_L;
+    sf::Vector2f KNEE_L;
+    sf::Vector2f FOOT_L;
+    sf::Vector2f WAIST_R;
+    sf::Vector2f HIP_R;
+    sf::Vector2f KNEE_R;
+    sf::Vector2f FOOT_R;
+
+public:
+    // Order these clockwise (perimeter)
+    std::vector<std::pair<sf::Vector2f, BODY_PART>> outline;
+
+    Human(const sf::Vector2f &orig, const float &h) : origin(orig), height(h)
+    {
+        s = height / 165.f; // keep same demo scale mapping
+        HEAD = origin + sf::Vector2f(0.f, -70.f) * s;
+        NECK = origin + sf::Vector2f(0.f, -50.f) * s;
+        SHO_R = origin + sf::Vector2f(36.f, -30.f) * s;
+        ELB_R = origin + sf::Vector2f(48.f, -5.f) * s;
+        HAND_R = origin + sf::Vector2f(56.f, 10.f) * s;
+        SHO_L = origin + sf::Vector2f(-36.f, -30.f) * s;
+        ELB_L = origin + sf::Vector2f(-48.f, -5.f) * s;
+        HAND_L = origin + sf::Vector2f(-56.f, 10.f) * s;
+        WAIST_L = origin + sf::Vector2f(-28.f, 40.f) * s;
+        HIP_L = origin + sf::Vector2f(-18.f, 40.f) * s;
+        KNEE_L = origin + sf::Vector2f(-6.f, 80.f) * s;
+        FOOT_L = origin + sf::Vector2f(-6.f, 95.f) * s;
+        WAIST_R = origin + sf::Vector2f(18.f, 40.f) * s;
+        HIP_R = origin + sf::Vector2f(6.f, 80.f) * s;
+        KNEE_R = origin + sf::Vector2f(6.f, 95.f) * s;
+        FOOT_R = origin + sf::Vector2f(2.f, 95.f) * s;
+
+        outline =
+            {
+                {HEAD, BODY_PART::HEAD}, // Top of head
+                {NECK, BODY_PART::NECK}, // Neck connection
+
+                // Right arm
+                {SHO_R, BODY_PART::SHO_R},
+                {ELB_R, BODY_PART::ELB_R},
+                {HAND_R, BODY_PART::HAND_R},
+
+                // Right side torso & right leg
+                {WAIST_R, BODY_PART::WAIST_R},
+                {HIP_R, BODY_PART::HIP_R},
+                {KNEE_R, BODY_PART::KNEE_R},
+                {FOOT_R, BODY_PART::FOOT_R},
+
+                // Left leg (going back up)
+                {FOOT_L, BODY_PART::FOOT_L},
+                {KNEE_L, BODY_PART::KNEE_L},
+                {HIP_L, BODY_PART::HIP_L},
+                {WAIST_L, BODY_PART::WAIST_L},
+
+                // Left arm
+                {HAND_L, BODY_PART::HAND_L},
+                {ELB_L, BODY_PART::ELB_L},
+                {SHO_L, BODY_PART::SHO_L},
+
+                {NECK, BODY_PART::NECK}, // Return to neck
+                {HEAD, BODY_PART::HEAD}  // Close loop at head
+            };
+    }
+    ~Human() = default;
+};
 void Player::create_figure()
 {
-    // Build a human-ish outline identical to demo_jelly.cpp, scaled by `height`.
-    // demo_jelly's vertical span is ~165px; map `height` to that span.
-    float demo_span = 165.f;
-    float scale = (height > 0.f) ? (height / demo_span) : 1.f;
-    sf::Vector2f pos{100.f, 100.f};
-
-    std::vector<sf::Vector2f> outline;
-    outline.reserve(16);
-
-    outline.push_back(pos + sf::Vector2f(-18.f, -70.f) * scale);
-    outline.push_back(pos + sf::Vector2f(18.f, -70.f) * scale);
-    outline.push_back(pos + sf::Vector2f(36.f, -30.f) * scale);
-    outline.push_back(pos + sf::Vector2f(36.f, 0.f) * scale);
-    outline.push_back(pos + sf::Vector2f(18.f, 40.f) * scale);
-    outline.push_back(pos + sf::Vector2f(6.f, 80.f) * scale);
-    outline.push_back(pos + sf::Vector2f(2.f, 95.f) * scale);
-    outline.push_back(pos + sf::Vector2f(-6.f, 95.f) * scale);
-    outline.push_back(pos + sf::Vector2f(-10.f, 80.f) * scale);
-    outline.push_back(pos + sf::Vector2f(-28.f, 40.f) * scale);
-    outline.push_back(pos + sf::Vector2f(-36.f, 0.f) * scale);
-    outline.push_back(pos + sf::Vector2f(-36.f, -30.f) * scale);
-
-    // choose spacing relative to player size (smaller spacing = denser lattice)
-    float spacing = std::max(6.f, 8.f * scale);
-
-    // create filled soft-body using new factory
+    Human human_shape({100.f, 150.f}, this->height);
+    float spacing = std::max(6.f, 8.f * human_shape.s);
     figure.clear();
-    figure.create_filled_from_polygon(outline, spacing);
-
-    // tune defaults for player feel (adjusted by weight/height)
-    // figure.stiffness = 0.85f;
-    // figure.stiffness_ring = 1.0f;
-    // figure.stiffness_spoke = 1.0f;
-    // damping: heavier players should be less bouncy
-    figure.damping = std::clamp(0.985f - (weight - 70.f) * 0.0008f, 0.94f, 0.998f);
-    // pressure: mild baseline, slightly lower for heavier players
-    figure.pressure = std::clamp(0.6f - (weight - 70.f) * 0.0025f, 0.2f, 1.2f);
-    figure.iterations = 10;
-
-    // scale masses with player weight while preserving ratios
-    if (figure.points.size())
-    {
-        figure.points[0].locked = false;
-        float massScale = (weight > 0.f) ? (weight / 70.f) : 1.f;
-        figure.points[0].mass = 2.f * massScale;
-        for (size_t i = 1; i < figure.points.size(); ++i)
-            figure.points[i].mass = 1.f * massScale;
-    }
+    figure.create_filled_from_polygon(human_shape.outline, spacing, this->ID);
 }
-
 void Player::spawn(sf::Vector2f pos)
 {
     if (figure.points.empty())

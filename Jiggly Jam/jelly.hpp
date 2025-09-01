@@ -7,12 +7,35 @@ enum class FORCE_TYPE
     LOCAL_FORCE,
     IMPULSE_FORCE
 };
+enum class BODY_PART
+{
+    HEAD,
+    NECK,
+    SHO_R,   // Right Shoulder
+    ELB_R,   // Right Elbow
+    HAND_R,  // Right Hand
+    SHO_L,   // Left Shoulder
+    ELB_L,   // Left Elbow
+    HAND_L,  // Left Hand
+    WAIST_L, // Left Waist
+    HIP_L,   // Left Hip
+    KNEE_L,  // Left Knee
+    FOOT_L,  // Left Foot
+    WAIST_R, // Right Waist
+    HIP_R,   // Right Hip
+    KNEE_R,  // Right Knee
+    FOOT_R,  // Right Foot
+    NONE     // unknown yet
+
+};
 struct Point
 {
     sf::Vector2f pos, prev_pos, acc = {0.f, 0.f};
 
     bool locked = false;
     float mass = 0.0001f;
+    BODY_PART body_part;
+    uint64_t id;
 };
 struct Spring
 {
@@ -56,12 +79,15 @@ public:
     void clear();
     void create_circle(int n, float r, sf::Vector2f c);
     void create_from_points(const std::vector<sf::Vector2f> &pts);
+    void create_from_points(const std::vector<std::pair<sf::Vector2f, BODY_PART>> &pts);
     // create from points but resample edges to have approximately target peripheral points
-    void create_from_points_resampled(const std::vector<sf::Vector2f> &pts, int targetPerimeterPoints);
+    void create_from_points_resampled(const std::vector<std::pair<sf::Vector2f, BODY_PART>> &pts, int targetPerimeterPoints, uint64_t id);
     // create a filled soft-body by sampling the interior of a polygon with a triangular lattice
     // polygon: ordered peripheral points
     // spacing: approximate distance between interior lattice points (pixels)
     void create_filled_from_polygon(const std::vector<sf::Vector2f> &pts, float spacing = 12.f);
+    // overload: accept perimeter points paired with BODY_PART tags and an owner id
+    void create_filled_from_polygon(const std::vector<std::pair<sf::Vector2f, BODY_PART>> &pts, float spacing, uint64_t id);
 
     float get_radius() const { return radius; }
 
@@ -97,6 +123,7 @@ void Jelly::create_circle(int n, float r, sf::Vector2f c)
     points[0].prev_pos = center;
     points[0].locked = false;
     points[0].mass = 1.f;
+    points[0].body_part = BODY_PART::NONE;
 
     for (int i = 1; i <= N; ++i)
     {
@@ -106,6 +133,7 @@ void Jelly::create_circle(int n, float r, sf::Vector2f c)
         points[i].prev_pos = p;
         points[i].mass = 1.f;
         points[i].locked = false;
+        points[i].body_part = BODY_PART::NONE;
     }
 
     // create springs: ring + center spokes
@@ -188,7 +216,7 @@ void Jelly::create_from_points(const std::vector<sf::Vector2f> &pts)
     targetArea = compute_area(points, N);
 }
 
-void Jelly::create_from_points_resampled(const std::vector<sf::Vector2f> &pts, int targetPerimeterPoints)
+void Jelly::create_from_points_resampled(const std::vector<std::pair<sf::Vector2f, BODY_PART>> &pts, int targetPerimeterPoints, uint64_t id)
 {
     if (pts.size() < 3)
     {
@@ -203,7 +231,7 @@ void Jelly::create_from_points_resampled(const std::vector<sf::Vector2f> &pts, i
     for (int i = 0; i < m; ++i)
     {
         int j = (i + 1) % m;
-        sf::Vector2f d = pts[j] - pts[i];
+        sf::Vector2f d = pts[j].first - pts[i].first;
         edgeLen[i] = std::sqrt(d.x * d.x + d.y * d.y);
         total += edgeLen[i];
     }
@@ -218,14 +246,14 @@ void Jelly::create_from_points_resampled(const std::vector<sf::Vector2f> &pts, i
         for (int k = 0; k < count; ++k)
         {
             float t = float(k) / float(count);
-            res.push_back(pts[i] + (pts[j] - pts[i]) * t);
+            res.push_back(pts[i].first + (pts[j].first - pts[i].first) * t);
         }
     }
 
     // ensure we have at least targetPerimeterPoints
     while ((int)res.size() < targetPerimeterPoints)
     {
-        res.push_back(pts[0]);
+        res.push_back(pts[0].first);
     }
 
     create_from_points(res);
@@ -417,6 +445,65 @@ void Jelly::create_filled_from_polygon(const std::vector<sf::Vector2f> &pts, flo
     radius = maxr;
 }
 
+// overload that takes BODY_PART tags per perimeter vertex and associates an owner id
+void Jelly::create_filled_from_polygon(const std::vector<std::pair<sf::Vector2f, BODY_PART>> &pts, float spacing, uint64_t id)
+{
+    if (pts.size() < 3)
+    {
+        // fallback: convert to simple vector and call base
+        std::vector<sf::Vector2f> simple;
+        for (auto &p : pts)
+            simple.push_back(p.first);
+        create_filled_from_polygon(simple, spacing);
+        // tag nothing else
+        for (auto &pt : points)
+        {
+            pt.body_part = BODY_PART::NONE;
+            pt.id = id;
+        }
+        return;
+    }
+
+    // convert to plain vector of positions and call the primary factory
+    std::vector<sf::Vector2f> simple;
+    simple.reserve(pts.size());
+    for (auto &p : pts)
+        simple.push_back(p.first);
+
+    create_filled_from_polygon(simple, spacing);
+
+    // Now assign BODY_PART to the perimeter points (1..N) by matching coordinates
+    // and set the owner id for all points.
+    // Build a map from perimeter coordinate to BODY_PART using small distance matching.
+    int perimCount = std::min((size_t)N, pts.size());
+    for (int i = 1; i <= perimCount; ++i)
+    {
+        points[i].body_part = BODY_PART::NONE;
+        points[i].id = id;
+        // find closest input perimeter entry
+        float bestd = 1e9f;
+        BODY_PART bestPart = BODY_PART::NONE;
+        for (auto &pp : pts)
+        {
+            float d = std::hypot(points[i].pos.x - pp.first.x, points[i].pos.y - pp.first.y);
+            if (d < bestd)
+            {
+                bestd = d;
+                bestPart = pp.second;
+            }
+        }
+        points[i].body_part = bestPart;
+    }
+    // tag interior points and center as NONE but set owner id
+    for (size_t i = perimCount + 1; i < points.size(); ++i)
+    {
+        points[i].body_part = BODY_PART::NONE;
+        points[i].id = id;
+    }
+    if (!points.empty())
+        points[0].id = id;
+}
+
 void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
 {
     const sf::Vector2f gravity{0.f, 981.f};
@@ -585,4 +672,53 @@ void Jelly::draw(sf::RenderWindow &window)
         c.setFillColor(sf::Color::Red);
         window.draw(c);
     }
+}
+
+void Jelly::create_from_points(const std::vector<std::pair<sf::Vector2f, BODY_PART>> &pts)
+{
+    if (pts.empty())
+        return;
+    // compute centroid
+    sf::Vector2f c{0.f, 0.f};
+    for (auto &p : pts)
+        c += p.first;
+    c /= float(pts.size());
+
+    N = (int)pts.size();
+    radius = 0.f;
+    center = c;
+    clear();
+
+    points.resize(N + 1);
+    points[0].pos = center;
+    points[0].prev_pos = center;
+    points[0].mass = 1.f;
+    points[0].locked = false;
+
+    for (int i = 1; i <= N; ++i)
+    {
+        points[i].pos = pts[i - 1].first;
+        points[i].prev_pos = pts[i - 1].first;
+        points[i].mass = 1.f;
+        points[i].locked = false;
+        points[i].body_part = pts[i - 1].second;
+        float d = std::sqrt((points[i].pos.x - center.x) * (points[i].pos.x - center.x) + (points[i].pos.y - center.y) * (points[i].pos.y - center.y));
+        radius = std::max(radius, d);
+    }
+
+    // springs
+    springs.clear();
+    for (int i = 1; i <= N; ++i)
+    {
+        int next = (i % N) + 1;
+        sf::Vector2f delta = points[next].pos - points[i].pos;
+        float dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+        springs.push_back({i, next, dist});
+
+        sf::Vector2f delta2 = points[i].pos - points[0].pos;
+        float dist2 = std::sqrt(delta2.x * delta2.x + delta2.y * delta2.y);
+        springs.push_back({0, i, dist2});
+    }
+    // compute and store target area for pressure (perimeter only)
+    targetArea = compute_area(points, N);
 }

@@ -25,9 +25,10 @@ uint64_t generateID()
     return rng();
 }
 
+
 class Player
 {
-private:
+protected:
     sf::Vector2f velocity, acceleration;
     float height, weight;
     uint64_t ID;
