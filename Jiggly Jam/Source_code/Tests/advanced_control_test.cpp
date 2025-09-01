@@ -47,7 +47,7 @@ int main()
     sf::Clock clock;
     sf::Clock testClock;
     float accumulator = 0.0f;
-    const float dt = 1.0f / 120.0f; // Fixed 120 FPS - MATCH debug_springs_test for stability!
+    const float dt = Player::STABLE_TIMESTEP; // Use the stable timestep from Player class!
 
     // Test metrics
     sf::Vector2f initialPos = player.get_position();
@@ -58,6 +58,8 @@ int main()
 
     std::cout << "\n🎯 Starting 10-second movement test..." << std::endl;
     std::cout << "💡 Advanced Controls: WASD control selected body part, TAB switches parts" << std::endl;
+    std::cout << "🚶 Movement Animations: Q = Wave, W = Walk Right, A = Walk Left (when in simple mode)" << std::endl;
+    std::cout << "🔄 Toggle Modes: E = Switch between Advanced Controls / Simple Animations" << std::endl;
     std::cout << "🦴 Postural Stability: Always active as foundation (like debug_springs_test)" << std::endl;
     std::cout << "📊 Initial position: (" << initialPos.x << ", " << initialPos.y << ")" << std::endl;
 
@@ -84,6 +86,38 @@ int main()
                 {
                     player.request_jump();
                     std::cout << "🦘 Jump!" << std::endl;
+                }
+                else if (event.key.code == sf::Keyboard::W && !player.isUsingAdvancedControls())
+                {
+                    player.startWalking();
+                    player.setWalkDirection(1.0f); // Walk right
+                    std::cout << "🚶 Start Walking Right!" << std::endl;
+                }
+                else if (event.key.code == sf::Keyboard::A && !player.isUsingAdvancedControls())
+                {
+                    player.startWalking();
+                    player.setWalkDirection(-1.0f); // Walk left
+                    std::cout << "🚶 Start Walking Left!" << std::endl;
+                }
+                else if (event.key.code == sf::Keyboard::Q)
+                {
+                    player.startWaving();
+                    std::cout << "👋 Start Waving!" << std::endl;
+                }
+                else if (event.key.code == sf::Keyboard::E)
+                {
+                    // Toggle between advanced and simple controls
+                    bool isAdvanced = player.isUsingAdvancedControls();
+                    player.setAdvancedControls(!isAdvanced);
+                    std::cout << "🔄 Switched to: " << (!isAdvanced ? "Advanced Controls" : "Simple Animations") << std::endl;
+                }
+            }
+            if (event.type == sf::Event::KeyReleased)
+            {
+                if ((event.key.code == sf::Keyboard::W || event.key.code == sf::Keyboard::A) && !player.isUsingAdvancedControls())
+                {
+                    player.stopWalking();
+                    std::cout << "🚶 Stop Walking!" << std::endl;
                 }
             }
         }

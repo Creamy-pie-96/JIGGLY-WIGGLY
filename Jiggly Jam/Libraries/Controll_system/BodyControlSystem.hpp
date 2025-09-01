@@ -51,6 +51,9 @@ protected:
 
     // STABILITY-AWARE CONTROL: Get force multiplier based on part's stability importance
     float getStabilityAwareness(BODY_PART part);
+
+    // SMART PD TUNING: Assess current stability to adapt force gains
+    float assessStabilityMetric(Jelly &body, uint64_t playerId);
 };
 
 // Advanced "Surgeon Mode" - Maximum control and complexity

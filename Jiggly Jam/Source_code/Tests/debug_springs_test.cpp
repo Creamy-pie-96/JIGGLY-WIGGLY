@@ -15,7 +15,7 @@ int main()
     player.set_ground_level(ground_y);
 
     // fixed timestep
-    const float dt = 1.f / 120.f;
+    const float dt = Player::STABLE_TIMESTEP; // Use the stable timestep from Player class!
     float accumulator = 0.f;
     sf::Clock clock;
 

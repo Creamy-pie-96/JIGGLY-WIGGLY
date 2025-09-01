@@ -430,6 +430,32 @@ void Player::update(float dt)
         // Apply coordinated forces that respect the stability foundation
         bodyControlSystem->update(dt);
         bodyControlSystem->applyControls(figure, ID, dt);
+
+        // CRITICAL FIX: Bridge advanced control input to basic locomotion
+        // Convert WASD from advanced controls into basic movement for locomotion
+        InputManager &inputMgr = bodyControlSystem->getInputManager();
+
+        MOVE_TYPE locomotionInput = MOVE_TYPE::NONE;
+
+        bool left = inputMgr.isHeld(BUTTON_ACTION::MOVE_LEFT);
+        bool right = inputMgr.isHeld(BUTTON_ACTION::MOVE_RIGHT);
+        bool up = inputMgr.isHeld(BUTTON_ACTION::MOVE_UP);
+
+        if (left && up)
+            locomotionInput = MOVE_TYPE::UP_LEFT;
+        else if (right && up)
+            locomotionInput = MOVE_TYPE::UP_RIGHT;
+        else if (left)
+            locomotionInput = MOVE_TYPE::LEFT;
+        else if (right)
+            locomotionInput = MOVE_TYPE::RIGHT;
+        else if (up)
+            locomotionInput = MOVE_TYPE::UP;
+
+        input = locomotionInput; // Set for simple controls to use
+
+        // Apply basic movement forces for locomotion
+        updateSimpleControls(dt);
     }
     else
     {
@@ -439,6 +465,12 @@ void Player::update(float dt)
 
     // 🔬 STEP 3: Physics integration (after all forces applied)
     updatePhysics(dt);
+
+    // 🚶 STEP 4: Update movement animations
+    if (isWalking)
+        updateWalkingAnimation(dt);
+    if (isWaving)
+        updateWavingAnimation(dt);
 }
 
 void Player::updateSimpleControls(float dt)
@@ -659,4 +691,154 @@ void Player::updatePhysics(float dt)
             }
         }
     }
+}
+
+// 🚶 WALKING ANIMATION IMPLEMENTATION
+void Player::updateWalkingAnimation(float dt)
+{
+    walkTimer += dt;
+
+    // Walking cycle: alternating leg movement
+    float cycle = std::sin(walkTimer * walkCycleSpeed);
+    float leftLegPhase = cycle;
+    float rightLegPhase = -cycle; // opposite phase
+
+    // Get leg joint indices
+    int leftHip = figure.find_part_index(ID, BODY_PART::HIP_L);
+    int rightHip = figure.find_part_index(ID, BODY_PART::HIP_R);
+    int leftKnee = figure.find_part_index(ID, BODY_PART::KNEE_L);
+    int rightKnee = figure.find_part_index(ID, BODY_PART::KNEE_R);
+    int leftFoot = figure.find_part_index(ID, BODY_PART::FOOT_L);
+    int rightFoot = figure.find_part_index(ID, BODY_PART::FOOT_R);
+    int pelvis = figure.find_part_index(ID, BODY_PART::PELVIS);
+
+    if (leftHip > 0 && rightHip > 0 && leftKnee > 0 && rightKnee > 0 && leftFoot > 0 && rightFoot > 0 && pelvis > 0)
+    {
+        // CRITICAL FIX: Apply walking momentum like jumping (instantaneous impulse)
+        // Use the SAME technique that makes jumping work successfully
+        sf::Vector2f walkingImpulse = sf::Vector2f(walkDirection * walkForwardSpeed, 0.0f);
+
+        // Apply to center of mass (points[0]) with dt=1.0f for instantaneous impulse, like jumping
+        if (figure.points.size() > 0)
+        {
+            figure.apply_force(walkingImpulse, figure.points[0].pos, figure.get_radius() * 1.5f, 1.0f);
+        }
+
+        // Get current positions
+        sf::Vector2f leftHipPos = figure.points[leftHip].pos;
+        sf::Vector2f rightHipPos = figure.points[rightHip].pos;
+
+        // Walking step parameters
+        float stepHeight = 20.0f;
+        float stepLength = 30.0f;
+
+        // Left leg movement (adjusted for forward walking)
+        sf::Vector2f leftFootTarget = leftHipPos + sf::Vector2f(
+                                                       stepLength * leftLegPhase * 0.3f + walkDirection * 10.0f,
+                                                       60.0f + stepHeight * std::max(0.0f, leftLegPhase) // lift foot when moving forward
+                                                   );
+
+        // Right leg movement (adjusted for forward walking)
+        sf::Vector2f rightFootTarget = rightHipPos + sf::Vector2f(
+                                                         stepLength * rightLegPhase * 0.3f + walkDirection * 10.0f,
+                                                         60.0f + stepHeight * std::max(0.0f, rightLegPhase) // lift foot when moving forward
+                                                     );
+
+        // Apply gentle walking targets (work WITH stability system)
+        figure.set_part_target(ID, BODY_PART::FOOT_L, leftFootTarget, 150.0f, 20.0f);  // Increased strength
+        figure.set_part_target(ID, BODY_PART::FOOT_R, rightFootTarget, 150.0f, 20.0f); // Increased strength
+
+        // Slight knee bend during walk cycle
+        figure.animate_skeleton_spring(ID, BODY_PART::HIP_L, BODY_PART::KNEE_L,
+                                       45.0f + 10.0f * std::abs(leftLegPhase), 0.3f);
+        figure.animate_skeleton_spring(ID, BODY_PART::HIP_R, BODY_PART::KNEE_R,
+                                       45.0f + 10.0f * std::abs(rightLegPhase), 0.3f);
+
+        // Add subtle body sway for natural walking
+        if (pelvis > 0)
+        {
+            sf::Vector2f sway = sf::Vector2f(std::sin(walkTimer * walkCycleSpeed * 2.0f) * 5.0f, 0.0f);
+            sf::Vector2f pelvisTarget = figure.points[pelvis].pos + sway;
+            figure.set_part_target(ID, BODY_PART::PELVIS, pelvisTarget, 50.0f, 10.0f); // Gentle sway
+        }
+    }
+}
+
+// 👋 WAVING ANIMATION IMPLEMENTATION
+void Player::updateWavingAnimation(float dt)
+{
+    waveTimer += dt;
+
+    // Find hand and shoulder
+    int rightHand = figure.find_part_index(ID, BODY_PART::HAND_R);
+    int rightShoulder = figure.find_part_index(ID, BODY_PART::SHO_R);
+    int rightElbow = figure.find_part_index(ID, BODY_PART::ELB_R);
+    int rightWrist = figure.find_part_index(ID, BODY_PART::WRIST_R);
+
+    if (rightHand > 0 && rightShoulder > 0)
+    {
+        sf::Vector2f shoulderPos = figure.points[rightShoulder].pos;
+
+        // Wave motion: circular movement
+        float freq = 6.0f;       // Hz
+        float amplitude = 40.0f; // Increased amplitude for more visible movement
+        float angle = waveTimer * freq;
+        sf::Vector2f offset = sf::Vector2f(std::cos(angle) * amplitude, std::sin(angle) * amplitude * 0.6f);
+
+        // Position hand relative to shoulder, not constrained to torso
+        sf::Vector2f baseHandPos = shoulderPos + sf::Vector2f(70.0f, -40.0f); // Further out from shoulder
+        sf::Vector2f handTarget = baseHandPos + offset;
+
+        // CRITICAL FIX: Use much gentler forces - the 800.0f was causing the player to fly!
+        // Apply force directly to the hand particle but with reasonable magnitude
+        sf::Vector2f handCurrentPos = figure.points[rightHand].pos;
+        sf::Vector2f handForce = (handTarget - handCurrentPos) * 50.0f; // Much gentler force
+
+        // Apply as impulse (dt = 1.0f) to overcome constraints but not launch the player
+        figure.apply_force(handForce, handCurrentPos, 15.0f, 1.0f);
+
+        // Apply progressive forces down the arm chain with gentler magnitudes
+        if (rightWrist > 0)
+        {
+            sf::Vector2f wristTarget = shoulderPos + (handTarget - shoulderPos) * 0.75f;
+            sf::Vector2f wristCurrentPos = figure.points[rightWrist].pos;
+            sf::Vector2f wristForce = (wristTarget - wristCurrentPos) * 40.0f; // Reduced from 600.0f
+            figure.apply_force(wristForce, wristCurrentPos, 12.0f, 1.0f);
+        }
+
+        if (rightElbow > 0)
+        {
+            sf::Vector2f elbowTarget = shoulderPos + (handTarget - shoulderPos) * 0.5f;
+            sf::Vector2f elbowCurrentPos = figure.points[rightElbow].pos;
+            sf::Vector2f elbowForce = (elbowTarget - elbowCurrentPos) * 30.0f; // Reduced from 400.0f
+            figure.apply_force(elbowForce, elbowCurrentPos, 10.0f, 1.0f);
+        }
+
+        // Dramatically weaken skeleton constraints during waving to allow free movement
+        // Reduce arm skeleton spring strength to allow natural arm movement
+        figure.animate_skeleton_spring(ID, BODY_PART::SHO_R, BODY_PART::ELB_R, 40.0f, 0.1f);    // Very weak
+        figure.animate_skeleton_spring(ID, BODY_PART::ELB_R, BODY_PART::WRIST_R, 30.0f, 0.1f);  // Very weak
+        figure.animate_skeleton_spring(ID, BODY_PART::WRIST_R, BODY_PART::HAND_R, 20.0f, 0.1f); // Very weak
+    }
+
+    // Stop waving after duration
+    if (waveTimer > waveDuration)
+    {
+        stopWaving();
+    }
+}
+
+// Clear animation targets
+void Player::clearWalkTargets()
+{
+    figure.clear_part_target(ID, BODY_PART::FOOT_L);
+    figure.clear_part_target(ID, BODY_PART::FOOT_R);
+    figure.clear_part_target(ID, BODY_PART::KNEE_L);
+    figure.clear_part_target(ID, BODY_PART::KNEE_R);
+}
+
+void Player::clearWaveTargets()
+{
+    figure.clear_part_target(ID, BODY_PART::HAND_R);
+    figure.clear_part_target(ID, BODY_PART::ELB_R);
 }

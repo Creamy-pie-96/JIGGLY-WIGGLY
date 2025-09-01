@@ -901,7 +901,7 @@ void Jelly::add_skeleton_for_player(uint64_t id, float skeletonStiffness)
     add_edge(BODY_PART::ANKLE_L, BODY_PART::FOOT_L);
 
     // after adding skeleton springs, connect flesh to skeleton
-    connect_flesh_to_skeleton(id, 0.35f); // softer stiffness for flesh connections
+    connect_flesh_to_skeleton(id, 0.35f, 1, 35.0f); // CRITICAL: Only 1 connection per flesh point, short range for independence
 }
 
 void Jelly::connect_flesh_to_skeleton(uint64_t owner_id, float fleshToSkeletonStiffness, int k, float maxDistance)

@@ -47,6 +47,21 @@ protected:
     std::unique_ptr<BodyControlSystem> bodyControlSystem;
     bool useAdvancedControls = true; // Toggle between simple and advanced controls
 
+    // 🚶 MOVEMENT ANIMATION SYSTEM
+    bool isWalking = false;
+    bool isWaving = false;
+    float walkTimer = 0.0f;
+    float waveTimer = 0.0f;
+    float walkCycleSpeed = 3.0f;    // walking frequency
+    float waveDuration = 2.5f;      // wave duration
+    float walkDirection = 1.0f;     // 1.0f = right, -1.0f = left
+    float walkForwardSpeed = 25.0f; // forward momentum strength (reduced for impulse-based force)
+
+public:
+    // 🎯 STABLE PHYSICS TIMESTEP - The Sweet Spot for Structural Integrity!
+    static constexpr float STABLE_TIMESTEP = 1.0f / 120.0f; // 120 FPS - Perfect for stability
+
+private:
     void create_figure();
     // ground / contact tuning
     float ground_level = 600.f;
@@ -96,7 +111,40 @@ public:
     // explicit edge-triggered jump request (call from input manager on button-down)
     void request_jump();
 
-    // Draw control system debug info
+    // 🚶 MOVEMENT ANIMATIONS
+    void startWalking()
+    {
+        isWalking = true;
+        walkTimer = 0.0f;
+    }
+    void stopWalking()
+    {
+        isWalking = false;
+        clearWalkTargets();
+    }
+    void setWalkDirection(float dir) { walkDirection = dir; } // 1.0f = right, -1.0f = left
+    void startWaving()
+    {
+        isWaving = true;
+        waveTimer = 0.0f;
+    }
+    void stopWaving()
+    {
+        isWaving = false;
+        clearWaveTargets();
+        // Restore normal skeleton spring strength after waving
+        figure.animate_skeleton_spring(ID, BODY_PART::SHO_R, BODY_PART::ELB_R, 40.0f, 1.0f);    // Full strength
+        figure.animate_skeleton_spring(ID, BODY_PART::ELB_R, BODY_PART::WRIST_R, 30.0f, 1.0f);  // Full strength
+        figure.animate_skeleton_spring(ID, BODY_PART::WRIST_R, BODY_PART::HAND_R, 20.0f, 1.0f); // Full strength
+    }
+
+private:
+    void updateWalkingAnimation(float dt);
+    void updateWavingAnimation(float dt);
+    void clearWalkTargets();
+    void clearWaveTargets();
+
+public:
     void drawControlDebug(sf::RenderWindow &window);
 };
 

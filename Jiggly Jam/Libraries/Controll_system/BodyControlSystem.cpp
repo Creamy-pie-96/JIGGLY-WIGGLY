@@ -190,10 +190,31 @@ void ControlSchemeBase::applyForceToBodyPart(Jelly &body, uint64_t playerId, BOD
         float staminaMultiplier = it->second.stamina / it->second.maxStamina;
         float finalStrength = strength * staminaMultiplier * globalStrengthMultiplier;
 
-        // ADAPTIVE GAINS: Reduce strength for stability-critical parts
+        // SMART PD TUNING: Assess stability and adjust gains accordingly
+        float stabilityMetric = assessStabilityMetric(body, playerId);
         float stabilityAwareness = getStabilityAwareness(part);
-        float adaptiveKp = finalStrength * 40.0f * stabilityAwareness; // Reduced from 50.0f
-        float adaptiveKd = finalStrength * 12.0f * stabilityAwareness; // Increased damping
+
+        // Dynamic PD tuning based on stability state
+        float baseKp = 40.0f;
+        float baseKd = 12.0f;
+
+        // If stability is high (> 0.8), allow more responsive forces
+        if (stabilityMetric > 0.8f)
+        {
+            float responsivenessFactor = 1.0f + (stabilityMetric - 0.8f) * 2.0f; // Up to 1.4x at perfect stability
+            baseKp = 40.0f * responsivenessFactor;
+            baseKd = 12.0f * responsivenessFactor;
+        }
+        // If stability is low (< 0.5), reduce forces to maintain stability
+        else if (stabilityMetric < 0.5f)
+        {
+            float cautionFactor = stabilityMetric / 0.5f; // 0 to 1 as stability approaches minimum
+            baseKp = 40.0f * cautionFactor;
+            baseKd = 12.0f * (cautionFactor + 0.5f); // More damping when unstable
+        }
+
+        float adaptiveKp = finalStrength * baseKp * stabilityAwareness;
+        float adaptiveKd = finalStrength * baseKd * stabilityAwareness;
 
         // Use stability-coordinated PD control
         body.set_part_target(playerId, part,
@@ -256,6 +277,107 @@ float ControlSchemeBase::getStabilityAwareness(BODY_PART part)
     default:
         return 0.7f; // Conservative default
     }
+}
+
+float ControlSchemeBase::assessStabilityMetric(Jelly &body, uint64_t playerId)
+{
+    // SMART STABILITY ASSESSMENT: Evaluate multiple factors for overall stability
+
+    float stabilityScore = 1.0f; // Start with perfect stability
+
+    // Factor 1: Center of mass position relative to feet
+    sf::Vector2f centerOfMass{0.f, 0.f};
+    sf::Vector2f leftFoot{0.f, 0.f};
+    sf::Vector2f rightFoot{0.f, 0.f};
+    float totalMass = 0.f;
+    bool hasLeftFoot = false, hasRightFoot = false;
+
+    for (const auto &p : body.points)
+    {
+        if (p.id == playerId)
+        {
+            centerOfMass += p.pos * p.mass;
+            totalMass += p.mass;
+
+            if (p.body_part == BODY_PART::FOOT_L)
+            {
+                leftFoot = p.pos;
+                hasLeftFoot = true;
+            }
+            else if (p.body_part == BODY_PART::FOOT_R)
+            {
+                rightFoot = p.pos;
+                hasRightFoot = true;
+            }
+        }
+    }
+
+    if (totalMass > 0.f)
+    {
+        centerOfMass /= totalMass;
+
+        // Factor 1: Balance over base of support
+        if (hasLeftFoot && hasRightFoot)
+        {
+            sf::Vector2f baseCenter = (leftFoot + rightFoot) * 0.5f;
+            float lateralOffset = std::abs(centerOfMass.x - baseCenter.x);
+            float baseWidth = std::abs(leftFoot.x - rightFoot.x);
+
+            if (baseWidth > 10.f) // Valid stance
+            {
+                float balanceRatio = lateralOffset / (baseWidth * 0.5f);
+                balanceRatio = std::clamp(balanceRatio, 0.f, 2.f);
+                stabilityScore *= (1.f - balanceRatio * 0.4f); // 40% penalty for imbalance
+            }
+        }
+
+        // Factor 2: Body velocity (stability decreases with excessive motion)
+        float totalVelocity = 0.f;
+        int pointCount = 0;
+
+        for (const auto &p : body.points)
+        {
+            if (p.id == playerId && !p.locked)
+            {
+                sf::Vector2f vel = p.pos - p.prev_pos;
+                totalVelocity += std::hypot(vel.x, vel.y);
+                pointCount++;
+            }
+        }
+
+        if (pointCount > 0)
+        {
+            float avgVelocity = totalVelocity / pointCount;
+            float velocityFactor = std::clamp(1.f - (avgVelocity - 2.f) / 10.f, 0.2f, 1.f);
+            stabilityScore *= velocityFactor; // Penalize excessive motion
+        }
+
+        // Factor 3: Spine alignment
+        int spineUp = body.find_part_index(playerId, BODY_PART::SPINE_UP);
+        int spineMid = body.find_part_index(playerId, BODY_PART::SPINE_MID);
+        int spineLow = body.find_part_index(playerId, BODY_PART::SPINE_LOW);
+
+        if (spineUp > 0 && spineMid > 0 && spineLow > 0)
+        {
+            sf::Vector2f upPos = body.points[spineUp].pos;
+            sf::Vector2f midPos = body.points[spineMid].pos;
+            sf::Vector2f lowPos = body.points[spineLow].pos;
+
+            // Calculate spine curvature
+            float spineHeight = upPos.y - lowPos.y;
+            float midDeviation = std::abs(midPos.x - (upPos.x + lowPos.x) * 0.5f);
+
+            if (spineHeight > 10.f)
+            {
+                float alignmentRatio = midDeviation / spineHeight;
+                float alignmentFactor = std::clamp(1.f - alignmentRatio * 2.f, 0.5f, 1.f);
+                stabilityScore *= alignmentFactor;
+            }
+        }
+    }
+
+    // Clamp final score between 0 and 1
+    return std::clamp(stabilityScore, 0.f, 1.f);
 }
 
 void ControlSchemeBase::drawStaminaBar(sf::RenderWindow &window, sf::Vector2f position, float stamina, float maxStamina, sf::Color color)
