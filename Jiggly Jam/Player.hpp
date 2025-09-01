@@ -25,7 +25,6 @@ uint64_t generateID()
     return rng();
 }
 
-
 class Player
 {
 protected:
@@ -41,7 +40,7 @@ protected:
     float move_force = 20000.f;
     // instantaneous lateral impulse (used for snappy, dt-independent movement). Lowered for less sensitivity.
     float move_impulse = 400.f;
-    float jump_force = 200.f;
+    float jump_force = 600.f;
     // desired steady walk speed when holding movement (pixels per physics step)
     float walk_speed = 2.2f;
     // tuning: increase move force for stronger lateral movement
@@ -103,3 +102,63 @@ Player::Player(std::string c) : velocity(0.f, 0.f), acceleration(0.f, 0.f), heig
 Player::~Player()
 {
 }
+
+// PlayerControl: a Player subclass that adds mapped part controls (e.g., waving)
+class PlayerControl : public Player
+{
+public:
+    using Player::Player; // inherit constructor
+
+    // wave demo state
+    bool waving = false;
+    float waveTimer = 0.f;
+    float waveDuration = 2.5f; // seconds
+
+    void start_wave()
+    {
+        waving = true;
+        waveTimer = 0.f;
+    }
+
+    void update(float dt)
+    {
+        // if waving, compute target for right hand (relative to shoulder)
+        if (waving && figure.points.size())
+        {
+            int sho = figure.find_part_index(ID, BODY_PART::SHO_R);
+            int hand = figure.find_part_index(ID, BODY_PART::HAND_R);
+            int elb = figure.find_part_index(ID, BODY_PART::ELB_R);
+            if (sho > 0 && hand > 0)
+            {
+                // base shoulder pos
+                sf::Vector2f spos = figure.points[sho].pos;
+                sf::Vector2f hpos = figure.points[hand].pos;
+                // wave motion: circular offset around current hand position
+                float freq = 6.f; // Hz
+                float amp = 18.f; // pixels
+                waveTimer += dt;
+                float angle = std::sin(waveTimer * freq) * 0.8f;
+                sf::Vector2f offset = sf::Vector2f(std::cos(angle), std::sin(angle)) * amp;
+                sf::Vector2f target = spos + sf::Vector2f(40.f, -10.f) + offset; // reach out from shoulder
+                // set PD target on hand
+                figure.set_part_target(ID, BODY_PART::HAND_R, target, 300.f, 30.f);
+                // also nudge elbow via animated spring to look like bending
+                if (elb > 0)
+                {
+                    // find current spring length between SHO_R and ELB_R and oscillate
+                    float baseLen = std::hypot(figure.points[elb].pos.x - figure.points[sho].pos.x, figure.points[elb].pos.y - figure.points[sho].pos.y);
+                    float newRest = baseLen * (1.f - 0.08f * std::sin(waveTimer * freq * 0.5f));
+                    figure.animate_skeleton_spring(ID, BODY_PART::SHO_R, BODY_PART::ELB_R, newRest, 0.5f);
+                }
+                if (waveTimer > waveDuration)
+                {
+                    waving = false;
+                    figure.clear_part_target(ID, BODY_PART::HAND_R);
+                }
+            }
+        }
+
+        // call base update to handle movement and physics
+        Player::update(dt);
+    }
+};

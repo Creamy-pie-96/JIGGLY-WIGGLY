@@ -15,7 +15,7 @@ int main()
     window.setKeyRepeatEnabled(false);
 
     // create two players
-    Player p1("red");
+    PlayerControl p1("red");
     Player p2("blue");
     p1.spawn({300.f, 100.f});
     p2.spawn({700.f, 100.f});
@@ -80,6 +80,10 @@ int main()
                     break;
                 case sf::Keyboard::Space:
                     p1_jump_state = down;
+                    break;
+                case sf::Keyboard::Q:
+                    if (down)
+                        p1.start_wave();
                     break;
                 // player2
                 case sf::Keyboard::Left:

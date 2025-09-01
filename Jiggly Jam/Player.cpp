@@ -4,85 +4,123 @@
 
 class Human
 {
-
 public:
     float s;
 
 private:
-    // 1) explicit landmark positions (example; scale/shift as needed)
     sf::Vector2f origin{100.f, 100.f};
     float height;
-    sf::Vector2f HEAD;
-    sf::Vector2f NECK;
-    sf::Vector2f SHO_R;
-    sf::Vector2f ELB_R;
-    sf::Vector2f HAND_R;
-    sf::Vector2f SHO_L;
-    sf::Vector2f ELB_L;
-    sf::Vector2f HAND_L;
-    sf::Vector2f WAIST_L;
-    sf::Vector2f HIP_L;
-    sf::Vector2f KNEE_L;
-    sf::Vector2f FOOT_L;
-    sf::Vector2f WAIST_R;
-    sf::Vector2f HIP_R;
-    sf::Vector2f KNEE_R;
-    sf::Vector2f FOOT_R;
+
+    // Key skeleton landmarks (these will be placed strategically in the outline)
+    sf::Vector2f HEAD, NECK, SPINE_UP, SPINE_MID, SPINE_LOW, PELVIS;
+    sf::Vector2f CLAV_R, CLAV_L;
+    sf::Vector2f SHO_R, SHO_L;
+    sf::Vector2f ELB_R, ELB_L;
+    sf::Vector2f WRIST_R, WRIST_L;
+    sf::Vector2f HAND_R, HAND_L;
+    sf::Vector2f HIP_R, HIP_L;
+    sf::Vector2f KNEE_R, KNEE_L;
+    sf::Vector2f ANKLE_R, ANKLE_L;
+    sf::Vector2f FOOT_R, FOOT_L;
 
 public:
-    // Order these clockwise (perimeter)
     std::vector<std::pair<sf::Vector2f, BODY_PART>> outline;
+    std::vector<std::pair<sf::Vector2f, BODY_PART>> interior_joints; // For spine segments
 
     Human(const sf::Vector2f &orig, const float &h) : origin(orig), height(h)
     {
-        s = height / 165.f; // keep same demo scale mapping
-        HEAD = origin + sf::Vector2f(0.f, -70.f) * s;
-        NECK = origin + sf::Vector2f(0.f, -50.f) * s;
-        SHO_R = origin + sf::Vector2f(36.f, -30.f) * s;
-        ELB_R = origin + sf::Vector2f(48.f, -5.f) * s;
-        HAND_R = origin + sf::Vector2f(56.f, 10.f) * s;
-        SHO_L = origin + sf::Vector2f(-36.f, -30.f) * s;
-        ELB_L = origin + sf::Vector2f(-48.f, -5.f) * s;
-        HAND_L = origin + sf::Vector2f(-56.f, 10.f) * s;
-        WAIST_L = origin + sf::Vector2f(-28.f, 40.f) * s;
-        HIP_L = origin + sf::Vector2f(-18.f, 40.f) * s;
-        KNEE_L = origin + sf::Vector2f(-6.f, 80.f) * s;
-        FOOT_L = origin + sf::Vector2f(-6.f, 95.f) * s;
-        WAIST_R = origin + sf::Vector2f(18.f, 40.f) * s;
-        HIP_R = origin + sf::Vector2f(6.f, 80.f) * s;
-        KNEE_R = origin + sf::Vector2f(6.f, 95.f) * s;
-        FOOT_R = origin + sf::Vector2f(2.f, 95.f) * s;
+        s = height / 180.f; // More realistic human height proportions
 
-        outline =
-            {
-                {HEAD, BODY_PART::HEAD}, // Top of head
-                {NECK, BODY_PART::NECK}, // Neck connection
+        // Define canonical skeleton positions
+        HEAD = origin + sf::Vector2f(0.f, -80.f) * s;
+        NECK = origin + sf::Vector2f(0.f, -65.f) * s;
+        SPINE_UP = origin + sf::Vector2f(0.f, -45.f) * s;  // Upper chest
+        SPINE_MID = origin + sf::Vector2f(0.f, -20.f) * s; // Mid torso
+        SPINE_LOW = origin + sf::Vector2f(0.f, 5.f) * s;   // Lower back
+        PELVIS = origin + sf::Vector2f(0.f, 20.f) * s;     // Pelvis center
 
-                // Right arm
-                {SHO_R, BODY_PART::SHO_R},
-                {ELB_R, BODY_PART::ELB_R},
-                {HAND_R, BODY_PART::HAND_R},
+        CLAV_R = origin + sf::Vector2f(15.f, -60.f) * s;  // Right clavicle
+        CLAV_L = origin + sf::Vector2f(-15.f, -60.f) * s; // Left clavicle
+        SHO_R = origin + sf::Vector2f(25.f, -55.f) * s;   // Right shoulder
+        SHO_L = origin + sf::Vector2f(-25.f, -55.f) * s;  // Left shoulder
+        ELB_R = origin + sf::Vector2f(35.f, -25.f) * s;   // Right elbow
+        ELB_L = origin + sf::Vector2f(-35.f, -25.f) * s;  // Left elbow
+        WRIST_R = origin + sf::Vector2f(38.f, 0.f) * s;   // Right wrist
+        WRIST_L = origin + sf::Vector2f(-38.f, 0.f) * s;  // Left wrist
+        HAND_R = origin + sf::Vector2f(40.f, 5.f) * s;    // Right hand
+        HAND_L = origin + sf::Vector2f(-40.f, 5.f) * s;   // Left hand
 
-                // Right side torso & right leg
-                {WAIST_R, BODY_PART::WAIST_R},
-                {HIP_R, BODY_PART::HIP_R},
-                {KNEE_R, BODY_PART::KNEE_R},
-                {FOOT_R, BODY_PART::FOOT_R},
+        HIP_R = origin + sf::Vector2f(12.f, 25.f) * s;    // Right hip
+        HIP_L = origin + sf::Vector2f(-12.f, 25.f) * s;   // Left hip
+        KNEE_R = origin + sf::Vector2f(15.f, 60.f) * s;   // Right knee
+        KNEE_L = origin + sf::Vector2f(-15.f, 60.f) * s;  // Left knee
+        ANKLE_R = origin + sf::Vector2f(12.f, 85.f) * s;  // Right ankle
+        ANKLE_L = origin + sf::Vector2f(-12.f, 85.f) * s; // Left ankle
+        FOOT_R = origin + sf::Vector2f(12.f, 90.f) * s;   // Right foot
+        FOOT_L = origin + sf::Vector2f(-12.f, 90.f) * s;  // Left foot
 
-                // Left leg (going back up)
-                {FOOT_L, BODY_PART::FOOT_L},
-                {KNEE_L, BODY_PART::KNEE_L},
-                {HIP_L, BODY_PART::HIP_L},
-                {WAIST_L, BODY_PART::WAIST_L},
+        // Create human silhouette with strategic skeleton joint placement
+        outline = {
+            // Head
+            {HEAD, BODY_PART::HEAD},
+            {origin + sf::Vector2f(8.f, -75.f) * s, BODY_PART::NONE},
+            {origin + sf::Vector2f(12.f, -68.f) * s, BODY_PART::NONE},
+            {NECK, BODY_PART::NECK},
 
-                // Left arm
-                {HAND_L, BODY_PART::HAND_L},
-                {ELB_L, BODY_PART::ELB_L},
-                {SHO_L, BODY_PART::SHO_L},
+            // Right side
+            {CLAV_R, BODY_PART::CLAV_R},
+            {SHO_R, BODY_PART::SHO_R},
+            {origin + sf::Vector2f(30.f, -45.f) * s, BODY_PART::NONE},
+            {ELB_R, BODY_PART::ELB_R},
+            {origin + sf::Vector2f(37.f, -10.f) * s, BODY_PART::NONE},
+            {WRIST_R, BODY_PART::WRIST_R},
+            {HAND_R, BODY_PART::HAND_R},
 
-                {NECK, BODY_PART::NECK}, // Return to neck
-                {HEAD, BODY_PART::HEAD}  // Close loop at head
-            };
+            // Right torso and leg
+            {origin + sf::Vector2f(35.f, -5.f) * s, BODY_PART::NONE},
+            {origin + sf::Vector2f(28.f, 10.f) * s, BODY_PART::NONE},
+            {HIP_R, BODY_PART::HIP_R},
+            {origin + sf::Vector2f(17.f, 40.f) * s, BODY_PART::NONE},
+            {KNEE_R, BODY_PART::KNEE_R},
+            {origin + sf::Vector2f(14.f, 75.f) * s, BODY_PART::NONE},
+            {ANKLE_R, BODY_PART::ANKLE_R},
+            {FOOT_R, BODY_PART::FOOT_R},
+
+            // Bottom
+            {origin + sf::Vector2f(8.f, 92.f) * s, BODY_PART::NONE},
+            {origin + sf::Vector2f(0.f, 93.f) * s, BODY_PART::NONE},
+            {origin + sf::Vector2f(-8.f, 92.f) * s, BODY_PART::NONE},
+
+            // Left leg
+            {FOOT_L, BODY_PART::FOOT_L},
+            {ANKLE_L, BODY_PART::ANKLE_L},
+            {origin + sf::Vector2f(-14.f, 75.f) * s, BODY_PART::NONE},
+            {KNEE_L, BODY_PART::KNEE_L},
+            {origin + sf::Vector2f(-17.f, 40.f) * s, BODY_PART::NONE},
+            {HIP_L, BODY_PART::HIP_L},
+
+            // Left torso and arm
+            {origin + sf::Vector2f(-28.f, 10.f) * s, BODY_PART::NONE},
+            {origin + sf::Vector2f(-35.f, -5.f) * s, BODY_PART::NONE},
+            {HAND_L, BODY_PART::HAND_L},
+            {WRIST_L, BODY_PART::WRIST_L},
+            {origin + sf::Vector2f(-37.f, -10.f) * s, BODY_PART::NONE},
+            {ELB_L, BODY_PART::ELB_L},
+            {origin + sf::Vector2f(-30.f, -45.f) * s, BODY_PART::NONE},
+            {SHO_L, BODY_PART::SHO_L},
+            {CLAV_L, BODY_PART::CLAV_L},
+
+            // Left side of head
+            {origin + sf::Vector2f(-12.f, -68.f) * s, BODY_PART::NONE},
+            {origin + sf::Vector2f(-8.f, -75.f) * s, BODY_PART::NONE},
+        };
+
+        // Interior skeleton joints (spine segments and pelvis center)
+        interior_joints = {
+            {SPINE_UP, BODY_PART::SPINE_UP},
+            {SPINE_MID, BODY_PART::SPINE_MID},
+            {SPINE_LOW, BODY_PART::SPINE_LOW},
+            {PELVIS, BODY_PART::PELVIS}};
     }
     ~Human() = default;
 };
@@ -92,6 +130,22 @@ void Player::create_figure()
     float spacing = std::max(6.f, 8.f * human_shape.s);
     figure.clear();
     figure.create_filled_from_polygon(human_shape.outline, spacing, this->ID);
+
+    // Add interior skeleton joints manually
+    for (const auto &joint : human_shape.interior_joints)
+    {
+        Point p;
+        p.pos = joint.first;
+        p.prev_pos = joint.first;
+        p.mass = 1.f;
+        p.locked = false;
+        p.body_part = joint.second;
+        p.id = this->ID;
+        figure.points.push_back(p);
+    }
+
+    // add skeleton springs (strong) and flesh-to-skeleton connections (soft)
+    figure.add_skeleton_for_player(this->ID, 2.0f); // stronger skeleton stiffness
 }
 void Player::spawn(sf::Vector2f pos)
 {

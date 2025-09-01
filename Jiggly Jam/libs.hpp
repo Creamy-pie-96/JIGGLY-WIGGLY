@@ -8,6 +8,7 @@
 #include <random>
 #include <cfloat>
 #include <memory>
+#include <unordered_map>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
