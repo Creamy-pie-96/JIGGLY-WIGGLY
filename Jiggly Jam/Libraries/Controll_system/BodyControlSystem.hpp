@@ -48,6 +48,9 @@ protected:
     void updateStamina(BODY_PART part, bool isActive, float dt);
     void applyForceToBodyPart(Jelly &body, uint64_t playerId, BODY_PART part, sf::Vector2f force, float strength);
     void drawStaminaBar(sf::RenderWindow &window, sf::Vector2f position, float stamina, float maxStamina, sf::Color color);
+
+    // STABILITY-AWARE CONTROL: Get force multiplier based on part's stability importance
+    float getStabilityAwareness(BODY_PART part);
 };
 
 // Advanced "Surgeon Mode" - Maximum control and complexity

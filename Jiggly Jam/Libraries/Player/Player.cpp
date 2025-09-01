@@ -387,6 +387,9 @@ void Player::spawn(sf::Vector2f pos)
     // reset any state
     onGround = false;
     coyoteTimer = 0.f;
+
+    // CRITICAL: Clear any residual part targets that might interfere with stability
+    figure.partTargets.clear();
 }
 
 void Player::set_onGround(bool g)
@@ -413,24 +416,29 @@ void Player::request_jump()
 void Player::update(float dt)
 {
     // =====================================================================
-    // DUAL-MODE UPDATE: Advanced Controls vs Simple Controls
+    // INTEGRATED UPDATE: Stability + Control Systems Working Together
     // =====================================================================
 
+    // 🦴 STEP 1: ALWAYS apply physiological reflexes (postural stability)
+    // This is the foundation - like human unconscious balance systems
+    figure.apply_postural_stability(this->ID, dt, ground_level);
+
+    // 🎮 STEP 2: Apply intentional control system on top of stable base
     if (useAdvancedControls && bodyControlSystem)
     {
         // 🎮 ADVANCED CONTROL SYSTEM MODE
+        // Apply coordinated forces that respect the stability foundation
         bodyControlSystem->update(dt);
         bodyControlSystem->applyControls(figure, ID, dt);
-
-        // Still handle ground collision and basic physics
-        updatePhysics(dt);
     }
     else
     {
         // 🎯 SIMPLE CONTROL MODE (Legacy)
         updateSimpleControls(dt);
-        updatePhysics(dt);
     }
+
+    // 🔬 STEP 3: Physics integration (after all forces applied)
+    updatePhysics(dt);
 }
 
 void Player::updateSimpleControls(float dt)
@@ -546,8 +554,8 @@ void Player::updateSimpleControls(float dt)
 
 void Player::updatePhysics(float dt)
 {
-    // Apply postural stability to help character stand upright
-    figure.apply_postural_stability(this->ID, dt, ground_level);
+    // NOTE: Postural stability is now applied in main update() before control systems
+    // This ensures stability is the foundation, not competing with controls
 
     // integrate and satisfy constraints
     figure.update(dt);

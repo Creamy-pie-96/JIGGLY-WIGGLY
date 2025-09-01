@@ -1,5 +1,40 @@
 #include "BodyControlSystem.hpp"
+#include <algorithm>
 #include <iostream>
+
+// Helper function to get body part name for debugging
+std::string getBodyPartName(BODY_PART part)
+{
+    switch (part)
+    {
+    case BODY_PART::HEAD:
+        return "HEAD";
+    case BODY_PART::PELVIS:
+        return "PELVIS";
+    case BODY_PART::SHO_L:
+        return "SHO_L";
+    case BODY_PART::SHO_R:
+        return "SHO_R";
+    case BODY_PART::ELB_L:
+        return "ELB_L";
+    case BODY_PART::ELB_R:
+        return "ELB_R";
+    case BODY_PART::HIP_L:
+        return "HIP_L";
+    case BODY_PART::HIP_R:
+        return "HIP_R";
+    case BODY_PART::KNEE_L:
+        return "KNEE_L";
+    case BODY_PART::KNEE_R:
+        return "KNEE_R";
+    case BODY_PART::ANKLE_L:
+        return "ANKLE_L";
+    case BODY_PART::ANKLE_R:
+        return "ANKLE_R";
+    default:
+        return "UNKNOWN";
+    }
+}
 #include <sstream>
 
 // =============================================================================
@@ -144,21 +179,82 @@ void ControlSchemeBase::updateStamina(BODY_PART part, bool isActive, float dt)
     }
 }
 
-void ControlSchemeBase::applyForceToBodyPart(Jelly &body, uint64_t playerId, BODY_PART part, sf::Vector2f force, float strength)
+void ControlSchemeBase::applyForceToBodyPart(Jelly &body, uint64_t playerId, BODY_PART part, sf::Vector2f targetPos, float strength)
 {
-    // Apply PD control with stamina and strength modifiers
+    // STABILITY-AWARE FORCE APPLICATION:
+    // Apply intentional forces that work WITH postural stability, not against it
+
     auto it = bodyControls.find(part);
     if (it != bodyControls.end())
     {
         float staminaMultiplier = it->second.stamina / it->second.maxStamina;
         float finalStrength = strength * staminaMultiplier * globalStrengthMultiplier;
 
-        // Use the existing PD control system in Jelly
+        // ADAPTIVE GAINS: Reduce strength for stability-critical parts
+        float stabilityAwareness = getStabilityAwareness(part);
+        float adaptiveKp = finalStrength * 40.0f * stabilityAwareness; // Reduced from 50.0f
+        float adaptiveKd = finalStrength * 12.0f * stabilityAwareness; // Increased damping
+
+        // Use stability-coordinated PD control
         body.set_part_target(playerId, part,
-                             force * 10.0f,          // Scale force to position target
-                             finalStrength * 200.0f, // kp - position gain
-                             finalStrength * 15.0f   // kd - damping
+                             targetPos,  // Actual target position
+                             adaptiveKp, // Stability-aware position gain
+                             adaptiveKd  // Stability-aware damping
         );
+    }
+}
+
+float ControlSchemeBase::getStabilityAwareness(BODY_PART part)
+{
+    // Return multiplier for stability-critical vs. mobility-focused parts
+    // Lower values = more conservative forces (respects stability more)
+    // Higher values = more aggressive forces (for expressive movement)
+
+    switch (part)
+    {
+    // CORE STABILITY PARTS - Very conservative forces
+    case BODY_PART::PELVIS:
+    case BODY_PART::SPINE_LOW:
+    case BODY_PART::SPINE_MID:
+        return 0.3f; // Minimal interference with postural control
+
+    case BODY_PART::FOOT_L:
+    case BODY_PART::FOOT_R:
+    case BODY_PART::ANKLE_L:
+    case BODY_PART::ANKLE_R:
+        return 0.4f; // Respect foot planting system
+
+    // SUPPORT STRUCTURE - Moderate forces
+    case BODY_PART::SPINE_UP:
+    case BODY_PART::NECK:
+    case BODY_PART::HIP_L:
+    case BODY_PART::HIP_R:
+        return 0.6f; // Some stability consideration
+
+    case BODY_PART::KNEE_L:
+    case BODY_PART::KNEE_R:
+        return 0.7f; // Important for locomotion
+
+    // EXPRESSIVE PARTS - Full forces allowed
+    case BODY_PART::HEAD:
+        return 0.8f; // Head movement for expression
+
+    case BODY_PART::HAND_L:
+    case BODY_PART::HAND_R:
+    case BODY_PART::WRIST_L:
+    case BODY_PART::WRIST_R:
+    case BODY_PART::ELB_L:
+    case BODY_PART::ELB_R:
+    case BODY_PART::SHO_L:
+    case BODY_PART::SHO_R:
+        return 1.0f; // Full expressive control for arms/hands
+
+    case BODY_PART::CLAV_L:
+    case BODY_PART::CLAV_R:
+        return 0.9f; // Near-full shoulder expression
+
+    default:
+        return 0.7f; // Conservative default
     }
 }
 
@@ -400,11 +496,11 @@ float ChaosControlScheme::getStamina(BODY_PART part) const { return 100.0f; }
 LearnControlScheme::LearnControlScheme()
 {
     selectableParts = {
-        BODY_PART::PELVIS, BODY_PART::HEAD,
-        BODY_PART::SHO_L, BODY_PART::SHO_R,
+        BODY_PART::PELVIS, BODY_PART::HEAD, // Start with stable core parts
+        BODY_PART::SHO_L, BODY_PART::SHO_R, // Arms
         BODY_PART::ELB_L, BODY_PART::ELB_R,
-        BODY_PART::HIP_L, BODY_PART::HIP_R,
-        BODY_PART::KNEE_L, BODY_PART::KNEE_R};
+        BODY_PART::HIP_L, BODY_PART::HIP_R,    // Hips (more stable than knees/ankles)
+        BODY_PART::KNEE_L, BODY_PART::KNEE_R}; // Legs last (most destabilizing)
 
     for (auto part : selectableParts)
     {
@@ -478,14 +574,22 @@ void LearnControlScheme::applyControls(Jelly &body, uint64_t playerId, float dt)
     if (control.isActive)
     {
         int partIndex = body.find_part_index(playerId, activePart);
-        if (partIndex > 0)
+        if (partIndex >= 0)
         {
             sf::Vector2f currentPos = body.points[partIndex].pos;
-            sf::Vector2f targetOffset = control.forceDirection * 40.0f;
+
+            // Use much smaller, gentler movements that cooperate with stability
+            sf::Vector2f targetOffset = control.forceDirection * 15.0f; // Much reduced for stability cooperation
             sf::Vector2f targetPos = currentPos + targetOffset;
 
-            applyForceToBodyPart(body, playerId, activePart, targetPos, control.intensity);
+            // Use very reduced intensity to work WITH stability, not against it
+            applyForceToBodyPart(body, playerId, activePart, targetPos, control.intensity * 0.2f); // Much lower intensity
         }
+    }
+    else
+    {
+        // CRITICAL: Clear part targets when not active to prevent interference with stability
+        body.clear_part_target(playerId, activePart);
     }
 }
 
@@ -498,6 +602,9 @@ void LearnControlScheme::reset()
     }
     currentPartIndex = 0;
     activePart = selectableParts[0];
+
+    // CRITICAL: Clear any residual part targets that could interfere with stability
+    // Note: We'll clear all targets for the player when Player spawns
 }
 
 std::string LearnControlScheme::getControlDescription() const
@@ -505,6 +612,7 @@ std::string LearnControlScheme::getControlDescription() const
     return "Tab: Cycle Body Parts | WASD: Move Selected\\n"
            "Current: " +
            std::to_string(static_cast<int>(activePart)) +
+           " (" + getBodyPartName(activePart) + ")" +
            " | Space: Jump | Shift: Balance";
 }
 
