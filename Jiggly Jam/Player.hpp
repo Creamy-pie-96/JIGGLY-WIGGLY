@@ -80,6 +80,7 @@ public:
     Jelly Figure() { return figure; }
     void spawn(sf::Vector2f pos);
     sf::Vector2f get_position() const { return figure.points.size() ? figure.points[0].pos : sf::Vector2f{0.f, 0.f}; }
+    size_t getPointCount() const { return figure.points.size(); }
 
     // runtime
     void update(float dt);

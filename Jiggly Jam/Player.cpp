@@ -309,7 +309,62 @@ void Player::create_figure()
     }
 
     // add skeleton springs (strong) and flesh-to-skeleton connections (soft)
-    figure.add_skeleton_for_player(this->ID, 2.0f); // stronger skeleton stiffness
+    figure.add_skeleton_for_player(this->ID, 5.0f); // Strong skeleton for standing stability
+
+    // Set proper mass distribution for stability
+    for (auto &p : figure.points)
+    {
+        if (p.id == this->ID)
+        {
+            switch (p.body_part)
+            {
+            // Feet and lower legs get more mass for stability
+            case BODY_PART::FOOT_L:
+            case BODY_PART::FOOT_R:
+                p.mass = 2.5f; // Heavy feet for grounding
+                break;
+            case BODY_PART::ANKLE_L:
+            case BODY_PART::ANKLE_R:
+                p.mass = 2.0f;
+                break;
+            case BODY_PART::KNEE_L:
+            case BODY_PART::KNEE_R:
+                p.mass = 1.5f;
+                break;
+
+            // Torso gets more mass (body weight)
+            case BODY_PART::SPINE_MID:
+            case BODY_PART::PELVIS:
+                p.mass = 1.8f;
+                break;
+            case BODY_PART::SPINE_UP:
+            case BODY_PART::SPINE_LOW:
+                p.mass = 1.5f;
+                break;
+
+            // Head moderate mass
+            case BODY_PART::HEAD:
+                p.mass = 1.3f;
+                break;
+
+            // Arms lighter for mobility
+            case BODY_PART::HAND_L:
+            case BODY_PART::HAND_R:
+            case BODY_PART::WRIST_L:
+            case BODY_PART::WRIST_R:
+                p.mass = 0.8f;
+                break;
+
+            // Default skeleton mass
+            case BODY_PART::NONE:
+                p.mass = 0.5f; // Flesh points lighter
+                break;
+            default:
+                p.mass = 1.0f; // Standard skeleton mass
+                break;
+            }
+        }
+    }
 }
 void Player::spawn(sf::Vector2f pos)
 {
@@ -465,25 +520,108 @@ void Player::update(float dt)
     if (coyoteTimer > 0.f)
         coyoteTimer -= dt;
 
+    // Apply postural stability to help character stand upright
+    figure.apply_postural_stability(this->ID, dt, ground_level);
+
     // integrate and satisfy constraints
     figure.update(dt);
 
-    // simple ground collision: clamp peripheral points just above ground and damp vertical velocity
+    // PROPER IMPULSE-BASED GROUND COLLISION (like standard game physics)
     if (figure.points.size() > 1)
     {
+        bool anyFootGrounded = false;
+        const float groundY = ground_level;
+        const float restitution = 0.1f; // Low bounce
+        const float staticFriction = 0.8f;
+
         for (size_t i = 1; i < figure.points.size(); ++i)
         {
             auto &p = figure.points[i];
-            float minY = ground_level;
-            if (p.pos.y > minY)
+
+            // Check for penetration
+            if (p.pos.y > groundY)
             {
-                // project onto ground
-                p.pos.y = minY;
-                // damp vertical velocity (simulate restitution)
-                p.prev_pos.y = p.pos.y + (p.prev_pos.y - p.pos.y) * (-ground_restitution);
-                // horizontal friction
-                p.prev_pos.x = p.pos.x + (p.prev_pos.x - p.pos.x) * (1.f - ground_friction);
+                // POSITION CORRECTION: Project out of ground
+                float penetration = p.pos.y - groundY;
+                p.pos.y = groundY;
+
+                // VELOCITY IMPULSE: Calculate relative velocity
+                sf::Vector2f velocity = (p.pos - p.prev_pos) / dt;
+                float relativeVelY = velocity.y; // How fast hitting ground
+
+                if (relativeVelY > 0.1f) // Only if moving into ground
+                {
+                    // Calculate impulse magnitude: J = -(1 + e) * vrel
+                    float impulseMagnitude = -(1.0f + restitution) * relativeVelY * p.mass;
+
+                    // Apply impulse (change in momentum)
+                    sf::Vector2f impulse = {0.f, impulseMagnitude};
+
+                    // Convert impulse to position change for Verlet integration
+                    sf::Vector2f velocityChange = impulse / p.mass;
+                    p.prev_pos.y = p.pos.y - velocityChange.y * dt;
+
+                    // FRICTION: Apply static friction to horizontal motion
+                    bool isFoot = (p.body_part == BODY_PART::FOOT_L || p.body_part == BODY_PART::FOOT_R ||
+                                   p.body_part == BODY_PART::ANKLE_L || p.body_part == BODY_PART::ANKLE_R);
+
+                    if (isFoot && std::abs(velocity.x) < 50.f) // Static friction threshold
+                    {
+                        // Lock foot horizontally when grounded (like real physics)
+                        p.prev_pos.x = p.pos.x - velocity.x * dt * (1.f - staticFriction);
+                        anyFootGrounded = true;
+                    }
+                    else
+                    {
+                        // Kinetic friction for sliding
+                        p.prev_pos.x = p.pos.x - velocity.x * dt * (1.f - staticFriction * 0.5f);
+                    }
+                }
+
                 onGround = true;
+            }
+        }
+
+        // STABILITY ENHANCEMENT: When feet are grounded, stabilize the figure
+        if (anyFootGrounded)
+        {
+            // Find feet positions for base of support calculation
+            sf::Vector2f leftFoot, rightFoot;
+            bool hasLeftFoot = false, hasRightFoot = false;
+
+            for (const auto &p : figure.points)
+            {
+                if (p.body_part == BODY_PART::FOOT_L)
+                {
+                    leftFoot = p.pos;
+                    hasLeftFoot = true;
+                }
+                if (p.body_part == BODY_PART::FOOT_R)
+                {
+                    rightFoot = p.pos;
+                    hasRightFoot = true;
+                }
+            }
+
+            if (hasLeftFoot && hasRightFoot)
+            {
+                sf::Vector2f supportCenter = (leftFoot + rightFoot) * 0.5f;
+
+                // Apply stabilizing force to keep upper body over base of support
+                for (auto &p : figure.points)
+                {
+                    if (p.body_part == BODY_PART::HEAD || p.body_part == BODY_PART::SPINE_UP ||
+                        p.body_part == BODY_PART::PELVIS)
+                    {
+                        float offset = p.pos.x - supportCenter.x;
+                        if (std::abs(offset) > 10.f) // Only correct significant imbalance
+                        {
+                            // Apply restoring force proportional to offset
+                            sf::Vector2f restoring = {-offset * 150.f * dt, 0.f};
+                            p.acc += restoring / p.mass;
+                        }
+                    }
+                }
             }
         }
     }

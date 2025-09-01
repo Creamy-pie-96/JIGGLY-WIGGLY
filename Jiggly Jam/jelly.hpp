@@ -71,16 +71,20 @@ public:
 
     std::vector<Point> points;
     std::vector<Spring> springs;
-    int iterations = 10;
+    int iterations = 25; // Increased for human figure stability
     // global stiffness multiplier for constraint correction (0..1)
-    float stiffness = 0.6f;
+    float stiffness = 0.8f; // Stronger for human figures
     // separate multipliers
     float stiffness_ring = 0.6f;   // peripheral-peripheral springs
     float stiffness_spoke = 0.65f; // center-peripheral springs
+    // Spring hierarchy for proper body mechanics
+    float stiffness_bone = 0.95f; // Skeleton/bone springs (very rigid)
+    float stiffness_joint = 0.8f; // Major joints (rigid but flexible)
+    float stiffness_flesh = 0.3f; // Soft tissue (flexible)
     // internal pressure (0 = off). Positive -> expansion force
-    float pressure = 1.8f;
+    float pressure = 0.5f; // Reduced to avoid conflict with grounding
     // damping multiplier applied to velocity (0..1, closer to 1 more bouncy)
-    float damping = 0.98f;
+    float damping = 0.96f; // Slightly more damping for stability
     // target area for pressure preservation
     float targetArea = 0.f;
     void update(float dt);
@@ -91,7 +95,38 @@ public:
 
     void add_point(const sf::Vector2f &pos, BODY_PART body_part)
     {
-        points.push_back({pos, pos, {0.f, 0.f}, false, 0.0001f, body_part, id});
+        // Game-physics based mass distribution for proper balance
+        float mass = 1.0f; // default
+
+        // Heavy skeletal structure for stability
+        if (body_part == BODY_PART::PELVIS || body_part == BODY_PART::SPINE_LOW ||
+            body_part == BODY_PART::SPINE_MID || body_part == BODY_PART::SPINE_UP ||
+            body_part == BODY_PART::HEAD)
+        {
+            mass = 5.0f; // Heavy core/spine
+        }
+        // Very heavy feet for grounding
+        else if (body_part == BODY_PART::FOOT_L || body_part == BODY_PART::FOOT_R ||
+                 body_part == BODY_PART::ANKLE_L || body_part == BODY_PART::ANKLE_R)
+        {
+            mass = 8.0f; // Very heavy feet for ground contact
+        }
+        // Medium weight limbs
+        else if (body_part == BODY_PART::HIP_L || body_part == BODY_PART::HIP_R ||
+                 body_part == BODY_PART::KNEE_L || body_part == BODY_PART::KNEE_R ||
+                 body_part == BODY_PART::SHO_L || body_part == BODY_PART::SHO_R ||
+                 body_part == BODY_PART::ELB_L || body_part == BODY_PART::ELB_R ||
+                 body_part == BODY_PART::WRIST_L || body_part == BODY_PART::WRIST_R)
+        {
+            mass = 2.0f; // Medium limb joints
+        }
+        // Light flesh/tissue
+        else if (body_part == BODY_PART::NONE)
+        {
+            mass = 0.5f; // Light soft tissue
+        }
+
+        points.push_back({pos, pos, {0.f, 0.f}, false, mass, body_part, id});
         part_index[body_part] = points.size() - 1;
     }
 
@@ -107,6 +142,8 @@ public:
         float dist = std::sqrt(d.x * d.x + d.y * d.y);
         if (dist < 1e-3f)
             dist = 1e-3f;
+
+        // Use default skeleton stiffness - hierarchy is handled elsewhere
         springs.push_back({ia, ib, dist, skeletonStiffness, true, id});
     }
 
@@ -127,6 +164,8 @@ public:
     void add_skeleton_for_player(uint64_t id, float skeletonStiffness = 1.5f);
     // connect interior/flesh points to nearest skeleton joints for soft attachment
     void connect_flesh_to_skeleton(uint64_t owner_id, float fleshToSkeletonStiffness = 0.4f, int k = 2, float maxDistance = 60.f);
+    // apply postural stability forces to maintain upright stance
+    void apply_postural_stability(uint64_t owner_id, float dt, float ground_y = 400.f);
     // control helpers for body parts
     int find_part_index(uint64_t owner_id, BODY_PART part) const;
     void apply_impulse_to_part(uint64_t owner_id, BODY_PART part, const sf::Vector2f &impulse);
@@ -657,7 +696,8 @@ void Jelly::create_filled_from_polygon(const std::vector<std::pair<sf::Vector2f,
 
 void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
 {
-    const sf::Vector2f gravity{0.f, 981.f};
+    // Reasonable gravity for soft-body character (not earth physics)
+    const sf::Vector2f gravity{0.f, 400.f}; // Reduced from 981 for game feel
 
     // Apply PD targets to targeted parts before integration
     for (auto &t : partTargets)
@@ -717,6 +757,7 @@ void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
         p.acc = {0.f, 0.f};
     }
 
+    // STABLE CONSTRAINT SOLVER: Position-based dynamics approach
     for (int it = 0; it < iterations; ++it)
     {
         for (auto &s : springs)
@@ -725,17 +766,46 @@ void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
             Point &p2 = points[s.p2];
             if (p1.locked && p2.locked)
                 continue;
+
             sf::Vector2f delta = p2.pos - p1.pos;
             float dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
-            if (dist == 0.f)
+            if (dist < 1e-3f) // Prevent division by zero
                 continue;
-            float diff = (dist - s.rest_length) / dist;
-            float localStiff = s.stiffness;                    // per-spring stiffness (can encode spoke/ring/skeleton)
-            float corr = 0.5f * diff * stiffness * localStiff; // apply global and per-spring stiffness
+
+            // Calculate constraint violation
+            float error = (dist - s.rest_length) / dist;
+
+            // Determine correction strength
+            float correctionFactor = s.stiffness * stiffness;
+
+            // Stronger correction for skeleton springs
+            if (s.is_skeleton)
+            {
+                correctionFactor *= 1.5f;
+            }
+
+            // Limit correction to prevent instability
+            correctionFactor = std::min(correctionFactor, 1.0f);
+
+            // Calculate position correction
+            sf::Vector2f correction = delta * error * correctionFactor;
+
+            // Apply corrections based on mass ratio (heavier points move less)
+            float mass1 = std::max(p1.mass, 0.1f); // Prevent tiny masses
+            float mass2 = std::max(p2.mass, 0.1f);
+            float totalMass = mass1 + mass2;
+
+            float ratio1 = mass2 / totalMass; // Point 1 gets mass2's influence
+            float ratio2 = mass1 / totalMass; // Point 2 gets mass1's influence
+
             if (!p1.locked)
-                p1.pos += delta * corr;
+            {
+                p1.pos += correction * ratio1;
+            }
             if (!p2.locked)
-                p2.pos -= delta * corr;
+            {
+                p2.pos -= correction * ratio2;
+            }
         }
     }
 }
@@ -1061,4 +1131,198 @@ void Jelly::connect_flesh_to_skeleton(uint64_t owner_id, float fleshToSkeletonSt
             }
         }
     }
+}
+
+// Apply postural stability forces to help character stand upright
+void Jelly::apply_postural_stability(uint64_t owner_id, float dt, float ground_y)
+{
+    if (points.empty())
+        return;
+
+    // Find key body parts for postural control
+    std::unordered_map<BODY_PART, int> part_indices;
+    for (size_t i = 0; i < points.size(); ++i)
+    {
+        if (points[i].id == owner_id && points[i].body_part != BODY_PART::NONE)
+        {
+            part_indices[points[i].body_part] = (int)i;
+        }
+    }
+
+    // === CORE POSTURAL CONTROLLER (like Euphoria/GTA ragdoll physics) ===
+
+    // 1. FOOT PLANTING: Lock feet when grounded (critical for stability)
+    auto plantFoot = [&](BODY_PART footPart)
+    {
+        auto it = part_indices.find(footPart);
+        if (it == part_indices.end())
+            return;
+
+        Point &foot = points[it->second];
+        float distToGround = ground_y - foot.pos.y;
+
+        if (distToGround < 15.f && distToGround > -2.f) // Grounded
+        {
+            // STRONG foot planting - this is crucial for standing
+            foot.mass = 12.0f; // Very heavy when grounded
+
+            // Active downward force to "stick" to ground
+            foot.acc.y += 300.f;
+
+            // Reduce horizontal drift significantly (like real foot plant)
+            sf::Vector2f vel = foot.pos - foot.prev_pos;
+            if (std::abs(vel.x) < 30.f) // Static friction range
+            {
+                foot.prev_pos.x = foot.pos.x - vel.x * 0.1f; // Almost lock horizontal
+            }
+        }
+        else
+        {
+            foot.mass = std::max(foot.mass * 0.9f, 2.0f); // Reduce when airborne
+        }
+    };
+
+    plantFoot(BODY_PART::FOOT_L);
+    plantFoot(BODY_PART::FOOT_R);
+
+    // 2. SPINE RIGIDITY: Keep spine straight and vertical (like real skeleton)
+    auto rigidSpine = [&]()
+    {
+        auto pelvis_it = part_indices.find(BODY_PART::PELVIS);
+        auto spine_low_it = part_indices.find(BODY_PART::SPINE_LOW);
+        auto spine_mid_it = part_indices.find(BODY_PART::SPINE_MID);
+        auto spine_up_it = part_indices.find(BODY_PART::SPINE_UP);
+        auto head_it = part_indices.find(BODY_PART::HEAD);
+
+        // Apply strong vertical alignment to entire spine chain
+        std::vector<int> spineChain;
+        if (pelvis_it != part_indices.end())
+            spineChain.push_back(pelvis_it->second);
+        if (spine_low_it != part_indices.end())
+            spineChain.push_back(spine_low_it->second);
+        if (spine_mid_it != part_indices.end())
+            spineChain.push_back(spine_mid_it->second);
+        if (spine_up_it != part_indices.end())
+            spineChain.push_back(spine_up_it->second);
+        if (head_it != part_indices.end())
+            spineChain.push_back(head_it->second);
+
+        if (spineChain.size() >= 2)
+        {
+            // Force spine segments to maintain vertical alignment
+            for (size_t i = 1; i < spineChain.size(); ++i)
+            {
+                Point &lower = points[spineChain[i - 1]];
+                Point &upper = points[spineChain[i]];
+
+                // Calculate target position (upper should be directly above lower)
+                sf::Vector2f idealOffset = {0.f, -40.f}; // 40 pixels up
+                sf::Vector2f currentOffset = upper.pos - lower.pos;
+                sf::Vector2f correction = idealOffset - currentOffset;
+
+                // Apply strong corrective forces
+                float strength = 250.f;
+                if (!upper.locked)
+                    upper.acc += correction * strength * dt / upper.mass;
+                if (!lower.locked)
+                    lower.acc -= correction * strength * dt * 0.5f / lower.mass;
+            }
+        }
+    };
+    rigidSpine();
+
+    // 3. ACTIVE BALANCE CONTROLLER: Keep center of mass over base of support
+    auto activeBalance = [&]()
+    {
+        auto foot_l_it = part_indices.find(BODY_PART::FOOT_L);
+        auto foot_r_it = part_indices.find(BODY_PART::FOOT_R);
+        auto pelvis_it = part_indices.find(BODY_PART::PELVIS);
+
+        if (foot_l_it == part_indices.end() || foot_r_it == part_indices.end() ||
+            pelvis_it == part_indices.end())
+            return;
+
+        Point &footL = points[foot_l_it->second];
+        Point &footR = points[foot_r_it->second];
+        Point &pelvis = points[pelvis_it->second];
+
+        // Check if both feet are grounded
+        bool leftGrounded = (ground_y - footL.pos.y) < 15.f;
+        bool rightGrounded = (ground_y - footR.pos.y) < 15.f;
+
+        if (leftGrounded && rightGrounded)
+        {
+            // Calculate base of support (center between feet)
+            sf::Vector2f supportCenter = (footL.pos + footR.pos) * 0.5f;
+
+            // Calculate total center of mass
+            sf::Vector2f com = {0.f, 0.f};
+            float totalMass = 0.f;
+            for (const auto &p : points)
+            {
+                if (p.id == owner_id)
+                {
+                    com += p.pos * p.mass;
+                    totalMass += p.mass;
+                }
+            }
+            if (totalMass > 1e-6f)
+                com /= totalMass;
+
+            // Apply STRONG balance control to keep COM over base
+            float horizontalError = com.x - supportCenter.x;
+
+            if (std::abs(horizontalError) > 3.f) // Very sensitive balance
+            {
+                // Apply counter-torque through pelvis (like real human balance)
+                sf::Vector2f balanceForce = {-horizontalError * 400.f, 0.f};
+                pelvis.acc += balanceForce / pelvis.mass;
+
+                // Also bias upper body to counter-balance
+                auto applyCounterBalance = [&](BODY_PART part, float weight)
+                {
+                    auto it = part_indices.find(part);
+                    if (it != part_indices.end() && !points[it->second].locked)
+                    {
+                        points[it->second].acc += balanceForce * weight / points[it->second].mass;
+                    }
+                };
+
+                applyCounterBalance(BODY_PART::SPINE_UP, 0.6f);
+                applyCounterBalance(BODY_PART::HEAD, 0.4f);
+            }
+        }
+    };
+    activeBalance();
+
+    // 4. HIP HEIGHT MAINTENANCE: Keep pelvis at proper height above feet
+    auto maintainHipHeight = [&]()
+    {
+        auto pelvis_it = part_indices.find(BODY_PART::PELVIS);
+        auto foot_l_it = part_indices.find(BODY_PART::FOOT_L);
+        auto foot_r_it = part_indices.find(BODY_PART::FOOT_R);
+
+        if (pelvis_it == part_indices.end() || foot_l_it == part_indices.end() ||
+            foot_r_it == part_indices.end())
+            return;
+
+        Point &pelvis = points[pelvis_it->second];
+        Point &footL = points[foot_l_it->second];
+        Point &footR = points[foot_r_it->second];
+
+        // Target pelvis height above feet
+        float avgFootY = (footL.pos.y + footR.pos.y) * 0.5f;
+        float targetPelvisY = avgFootY - 120.f; // Pelvis should be 120px above feet
+        float currentPelvisY = pelvis.pos.y;
+
+        float heightError = currentPelvisY - targetPelvisY;
+
+        if (std::abs(heightError) > 10.f)
+        {
+            // Apply vertical correction force
+            sf::Vector2f heightForce = {0.f, -heightError * 200.f};
+            pelvis.acc += heightForce / pelvis.mass;
+        }
+    };
+    maintainHipHeight();
 }
