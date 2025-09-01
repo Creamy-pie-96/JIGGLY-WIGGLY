@@ -412,6 +412,29 @@ void Player::request_jump()
 
 void Player::update(float dt)
 {
+    // =====================================================================
+    // DUAL-MODE UPDATE: Advanced Controls vs Simple Controls
+    // =====================================================================
+
+    if (useAdvancedControls && bodyControlSystem)
+    {
+        // 🎮 ADVANCED CONTROL SYSTEM MODE
+        bodyControlSystem->update(dt);
+        bodyControlSystem->applyControls(figure, ID, dt);
+
+        // Still handle ground collision and basic physics
+        updatePhysics(dt);
+    }
+    else
+    {
+        // 🎯 SIMPLE CONTROL MODE (Legacy)
+        updateSimpleControls(dt);
+        updatePhysics(dt);
+    }
+}
+
+void Player::updateSimpleControls(float dt)
+{
     // interpret public `input` (input manager should set this per-player)
     sf::Vector2f moveForce{0.f, 0.f};
     bool wantJump = false;
@@ -519,7 +542,10 @@ void Player::update(float dt)
 
     if (coyoteTimer > 0.f)
         coyoteTimer -= dt;
+}
 
+void Player::updatePhysics(float dt)
+{
     // Apply postural stability to help character stand upright
     figure.apply_postural_stability(this->ID, dt, ground_level);
 

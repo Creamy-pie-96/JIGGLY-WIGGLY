@@ -6,10 +6,10 @@
       "type": "shell",
       "command": "sh",
       "args": [
-  "-c",
-  "FILE=\"${file}\"; WF=\"${workspaceFolder}/Jiggly Jam\"; BASENAME=\"${fileBasenameNoExtension}\"; \ncase \"$FILE\" in \n  *\"/Source_code/Tests/\"*|*\"/Tests/\"*|*\"/tests/\"*) OUT=\"$WF/build/test\"; FLAGS=\"-g\" ;; \n  *) OUT=\"$WF/build/final\"; FLAGS=\"-O2\" ;; \nesac; \nmkdir -p \"$OUT\"; cd \"$WF\"; \n# compile\ng++ -std=c++17 $FLAGS -I. \"$FILE\" Libraries/Gmae_physics/jelly.cpp Libraries/Controll_system/BodyControlSystem.cpp Libraries/Controll_system/InputManager.cpp Libraries/Player/Player.cpp -lsfml-graphics -lsfml-window -lsfml-system -o \"$OUT/$BASENAME\""
+        "-c",
+        "FILE=\"${file}\"; WF=\"${workspaceFolder}/Jiggly Jam\"; BASENAME=\"${fileBasenameNoExtension}\"; \ncase \"$FILE\" in \n  *\"/Source_code/Tests/\"*|*\"/Tests/\"*|*\"/tests/\"*) OUT=\"$WF/build/test\"; FLAGS=\"-g\" ;; \n  *) OUT=\"$WF/build/final\"; FLAGS=\"-O2\" ;; \nesac; \nmkdir -p \"$OUT\"; cd \"$WF\"; \n# compile\ng++ -std=c++17 $FLAGS -I. \"$FILE\" Libraries/Gmae_physics/jelly.cpp Libraries/Controll_system/BodyControlSystem.cpp Libraries/Controll_system/InputManager.cpp Libraries/Player/Player.cpp -lsfml-graphics -lsfml-window -lsfml-system -o \"$OUT/$BASENAME\""
       ],
-  "group": "build",
+      "group": "build",
       "problemMatcher": ["$gcc"]
     },
     {
@@ -17,8 +17,8 @@
       "type": "shell",
       "command": "sh",
       "args": [
-  "-c",
-  "FILE=\"${file}\"; WF=\"${workspaceFolder}/Jiggly Jam\"; BASENAME=\"${fileBasenameNoExtension}\"; \ncase \"$FILE\" in \n  *\"/Source_code/Tests/\"*|*\"/Tests/\"*|*\"/tests/\"*) OUT=\"$WF/build/test\" ;; \n  *) OUT=\"$WF/build/final\" ;; \nesac; \nexec \"$OUT/$BASENAME\""
+        "-c",
+        "FILE=\"${file}\"; WF=\"${workspaceFolder}/Jiggly Jam\"; BASENAME=\"${fileBasenameNoExtension}\"; \ncase \"$FILE\" in \n  *\"/Source_code/Tests/\"*|*\"/Tests/\"*|*\"/tests/\"*) OUT=\"$WF/build/test\" ;; \n  *) OUT=\"$WF/build/final\" ;; \nesac; \nexec \"$OUT/$BASENAME\""
       ],
       "group": "build"
     },
