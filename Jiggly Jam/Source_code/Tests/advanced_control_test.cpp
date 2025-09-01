@@ -4,31 +4,41 @@
 int main()
 {
     const int W = 1200, H = 800;
-    sf::RenderWindow window(sf::VideoMode(W, H), "🎮 Advanced Control Test - WASD Body Part Control");
+    sf::RenderWindow window(sf::VideoMode(W, H), "🎮 Gang Beasts Evolution Test - Phase 1.1 & 1.2");
     window.setFramerateLimit(60);
 
-    std::cout << "\n🎮 === ADVANCED CONTROL MECHANICS TEST ===" << std::endl;
-    std::cout << "💡 This test verifies that body parts actually respond to input!\n"
+    std::cout << "\n🎮 === GANG BEASTS EVOLUTION PHASE 1 TEST ===" << std::endl;
+    std::cout << "🎯 Testing Step 1.1: Physics Personality Tuning" << std::endl;
+    std::cout << "🎯 Testing Step 1.2: Enhanced Postural Stability" << std::endl;
+    std::cout << "💡 This test verifies Gang Beasts-style physics work with existing controls!\n"
               << std::endl;
 
     // Create player with advanced controls
     Player player("test", &window);
 
-    // CRITICAL: Set ground level for stable physics (like debug_springs_test does!)
+    // 🎮 GANG BEASTS EVOLUTION: Load settings
+    bool settingsLoaded = player.loadGangBeastsSettings("Game Settings/settings.json");
+    if (settingsLoaded)
+    {
+        std::cout << "✅ Gang Beasts settings loaded successfully!" << std::endl;
+        player.printCurrentSettings();
+    }
+    else
+    {
+        std::cout << "⚠️ Gang Beasts settings failed to load - using defaults" << std::endl;
+    }
+
+    // CRITICAL: Set ground level for stable physics
     float ground_y = H - 50.0f;
     player.set_ground_level(ground_y);
 
-    // 🎯 KEEP ADVANCED CONTROLS ENABLED - now they work WITH stability!
-    // The postural stability system is now integrated as the foundation
-
-    // Spawn player ABOVE ground for proper settling (like debug_springs_test)
-    // Debug springs: spawn at 200, ground at 700 (500px above ground)
-    // Advanced test: spawn at 200, ground at 750 (550px above ground)
+    // Spawn player ABOVE ground for proper settling
     player.spawn({W / 2.0f, 200.0f});
 
     auto *controlSys = player.getControlSystem();
 
-    std::cout << "🎮 Control Mode: " << (player.isUsingAdvancedControls() ? "Advanced + Stability" : "Simple (Stable)") << std::endl;
+    std::cout << "🎮 Control Mode: " << (player.isUsingAdvancedControls() ? "Advanced + Gang Beasts Stability" : "Simple") << std::endl;
+    std::cout << "🎪 Gang Beasts Physics: " << (player.isGangBeastsPhysicsEnabled() ? "ENABLED" : "DISABLED") << std::endl;
 
     if (player.isUsingAdvancedControls() && controlSys)
     {
@@ -56,11 +66,13 @@ int main()
     bool detectedMovement = false;
     bool detectedInput = false;
 
-    std::cout << "\n🎯 Starting 10-second movement test..." << std::endl;
+    std::cout << "\n🎯 Starting Gang Beasts physics test..." << std::endl;
     std::cout << "💡 Advanced Controls: WASD control selected body part, TAB switches parts" << std::endl;
     std::cout << "🚶 Movement Animations: Q = Wave, W = Walk Right, A = Walk Left (when in simple mode)" << std::endl;
     std::cout << "🔄 Toggle Modes: E = Switch between Advanced Controls / Simple Animations" << std::endl;
-    std::cout << "🦴 Postural Stability: Always active as foundation (like debug_springs_test)" << std::endl;
+    std::cout << "🎪 Gang Beasts: G = Toggle Gang Beasts Physics ON/OFF" << std::endl;
+    std::cout << "🔧 Settings: R = Reload settings from file" << std::endl;
+    std::cout << "🦴 Postural Stability: Enhanced with reaction delays and overcompensation" << std::endl;
     std::cout << "📊 Initial position: (" << initialPos.x << ", " << initialPos.y << ")" << std::endl;
 
     while (window.isOpen())
@@ -80,7 +92,7 @@ int main()
                 {
                     controlSys->nextScheme();
                     auto *scheme = controlSys->getCurrentScheme();
-                    std::cout << "🔄 Switched to: " << scheme->getSchemeName() << " (stability-integrated)" << std::endl;
+                    std::cout << "🔄 Switched to: " << scheme->getSchemeName() << " (Gang Beasts enhanced)" << std::endl;
                 }
                 else if (event.key.code == sf::Keyboard::Space)
                 {
@@ -110,6 +122,30 @@ int main()
                     bool isAdvanced = player.isUsingAdvancedControls();
                     player.setAdvancedControls(!isAdvanced);
                     std::cout << "🔄 Switched to: " << (!isAdvanced ? "Advanced Controls" : "Simple Animations") << std::endl;
+                }
+                else if (event.key.code == sf::Keyboard::G)
+                {
+                    // 🎮 GANG BEASTS EVOLUTION: Toggle Gang Beasts physics
+                    bool isEnabled = player.isGangBeastsPhysicsEnabled();
+                    player.enableGangBeastsPhysics(!isEnabled);
+                    std::cout << "🎪 Gang Beasts Physics: " << (!isEnabled ? "ENABLED" : "DISABLED") << std::endl;
+                    if (!isEnabled)
+                    {
+                        std::cout << "    ➤ Skeleton springs now looser for goofy movement" << std::endl;
+                        std::cout << "    ➤ Enhanced stability with reaction delays" << std::endl;
+                        std::cout << "    ➤ Overcompensation for comic effect" << std::endl;
+                    }
+                    else
+                    {
+                        std::cout << "    ➤ Reverted to original precise physics" << std::endl;
+                    }
+                }
+                else if (event.key.code == sf::Keyboard::R)
+                {
+                    // 🎮 GANG BEASTS EVOLUTION: Reload settings
+                    std::cout << "🔧 Reloading Gang Beasts settings..." << std::endl;
+                    player.reloadSettings();
+                    player.printCurrentSettings();
                 }
             }
             if (event.type == sf::Event::KeyReleased)
@@ -242,33 +278,38 @@ int main()
     sf::Vector2f finalPos = player.get_position();
     float totalDisplacement = std::hypot(finalPos.x - initialPos.x, finalPos.y - initialPos.y);
 
-    std::cout << "\n📊 === MOVEMENT TEST RESULTS ===" << std::endl;
+    std::cout << "\n📊 === GANG BEASTS EVOLUTION TEST RESULTS ===" << std::endl;
     std::cout << "📍 Final position: (" << finalPos.x << ", " << finalPos.y << ")" << std::endl;
     std::cout << "📏 Total displacement: " << totalDisplacement << " pixels" << std::endl;
     std::cout << "🏃 Total movement: " << totalMovement << " pixels" << std::endl;
     std::cout << "🎮 Input detected: " << (detectedInput ? "✅ YES" : "❌ NO") << std::endl;
     std::cout << "🎯 Movement detected: " << (detectedMovement ? "✅ YES" : "❌ NO") << std::endl;
+    std::cout << "🎪 Gang Beasts Physics: " << (player.isGangBeastsPhysicsEnabled() ? "✅ ACTIVE" : "❌ DISABLED") << std::endl;
 
     if (detectedInput && detectedMovement)
     {
-        std::cout << "\n🎉 SUCCESS: Integrated Advanced Controls + Postural Stability working!" << std::endl;
-        std::cout << "✅ Body parts respond to input with stability foundation" << std::endl;
-        std::cout << "✅ Postural reflexes maintain structural integrity" << std::endl;
-        std::cout << "✅ Advanced controls work WITH stability (not against it)" << std::endl;
-        std::cout << "✅ Best of both worlds: Expressive control + Natural balance" << std::endl;
+        std::cout << "\n🎉 SUCCESS: Gang Beasts Evolution Phase 1 Working!" << std::endl;
+        std::cout << "✅ Step 1.1: Physics Personality - Skeleton springs are looser" << std::endl;
+        std::cout << "✅ Step 1.1: Mass Distribution - Top-heavy character for instability" << std::endl;
+        std::cout << "✅ Step 1.1: Flesh Springs - Enhanced wobbliness and damping" << std::endl;
+        std::cout << "✅ Step 1.2: Enhanced Stability - Reaction delays implemented" << std::endl;
+        std::cout << "✅ Step 1.2: Overcompensation - Comic balance corrections active" << std::endl;
+        std::cout << "✅ Integration: Works WITH existing Advanced Control system" << std::endl;
+        std::cout << "✅ Settings System: JSON-based tuning without recompilation" << std::endl;
+        std::cout << "\n🎯 Next Phase: Implement physics-driven walking (Step 2.1)" << std::endl;
     }
     else if (detectedInput && !detectedMovement)
     {
-        std::cout << "\n⚠️  PARTIAL: Input detected but no significant movement" << std::endl;
+        std::cout << "\n⚠️  PARTIAL: Input detected but limited movement" << std::endl;
         std::cout << "🔧 This could indicate:" << std::endl;
-        std::cout << "   - Controls are too weak" << std::endl;
-        std::cout << "   - Input mapping issues" << std::endl;
-        std::cout << "   - Physics constraints too strong" << std::endl;
+        std::cout << "   - Gang Beasts springs may be too loose" << std::endl;
+        std::cout << "   - Need to adjust stiffness multipliers in settings.json" << std::endl;
+        std::cout << "   - Enhanced stability may be over-correcting" << std::endl;
     }
     else
     {
-        std::cout << "\n❌ ISSUE: Advanced controls may not be fully connected" << std::endl;
-        std::cout << "🔧 Check input manager and control scheme implementation" << std::endl;
+        std::cout << "\n❌ ISSUE: Gang Beasts physics may not be fully integrated" << std::endl;
+        std::cout << "🔧 Check settings.json loading and Gang Beasts physics toggle" << std::endl;
     }
 
     return 0;

@@ -3,6 +3,7 @@
 #include "../libs.hpp"
 #include "../Gmae_physics/jelly.hpp"
 #include "../Controll_system/BodyControlSystem.hpp"
+#include "../settings_perser.hpp"
 #include <chrono>
 #include <random>
 #include <memory>
@@ -47,6 +48,10 @@ protected:
     std::unique_ptr<BodyControlSystem> bodyControlSystem;
     bool useAdvancedControls = true; // Toggle between simple and advanced controls
 
+    // 🎮 GANG BEASTS EVOLUTION: Settings Integration
+    std::unique_ptr<SettingsParser> settingsParser;
+    bool gangBeastsPhysicsEnabled = true; // Toggle for Gang Beasts vs original physics
+
     // 🚶 MOVEMENT ANIMATION SYSTEM
     bool isWalking = false;
     bool isWaving = false;
@@ -81,6 +86,22 @@ public:
     void setAdvancedControls(bool enabled) { useAdvancedControls = enabled; }
     bool isUsingAdvancedControls() const { return useAdvancedControls; }
     BodyControlSystem *getControlSystem() const { return bodyControlSystem.get(); }
+
+    // 🎮 GANG BEASTS EVOLUTION: Settings Management
+    bool loadGangBeastsSettings(const std::string &settingsPath = "Game Settings/settings.json");
+    void enableGangBeastsPhysics(bool enabled) { gangBeastsPhysicsEnabled = enabled; }
+    bool isGangBeastsPhysicsEnabled() const { return gangBeastsPhysicsEnabled; }
+    const GangBeastsSettings::GangBeastsPhysicsSettings *getGangBeastsSettings() const;
+    void reloadSettings()
+    {
+        if (settingsParser)
+            settingsParser->reloadSettings();
+    }
+    void printCurrentSettings() const
+    {
+        if (settingsParser)
+            settingsParser->printSettings();
+    }
 
     // setters for external input manager
     void set_input(MOVE_TYPE m) { input = m; }
@@ -167,6 +188,10 @@ inline Player::Player(std::string c, sf::RenderWindow *window)
         useAdvancedControls = false;
         std::cout << "🎮 Player " << ID << " initialized with simple controls!" << std::endl;
     }
+
+    // 🎮 GANG BEASTS EVOLUTION: Initialize settings system
+    settingsParser = std::make_unique<SettingsParser>();
+    loadGangBeastsSettings(); // Attempt to load settings (will use defaults if file not found)
 }
 
 inline Player::~Player()

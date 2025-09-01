@@ -557,6 +557,24 @@ void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
     // Reasonable gravity for soft-body character (not earth physics)
     const sf::Vector2f gravity{0.f, 400.f}; // Reduced from 981 for game feel
 
+    // 🎮 GANG BEASTS EVOLUTION: Apply mass multipliers to points
+    // RE-ENABLED FOR TESTING
+    if (gangBeastsSettings)
+    {
+        for (auto &p : points)
+        {
+            if (p.body_part != BODY_PART::NONE)
+            {
+                float massMultiplier = getMassMultiplier(p.body_part);
+                // Apply mass multiplier (but preserve original base mass)
+                if (p.mass < 0.1f)
+                { // Only modify if it's still base mass
+                    p.mass = 0.0001f * massMultiplier;
+                }
+            }
+        }
+    }
+
     // Apply PD targets to targeted parts before integration
     for (auto &t : partTargets)
     {
@@ -603,23 +621,44 @@ void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
         }
     }
 
+    // 🎮 GANG BEASTS EVOLUTION: Apply enhanced flesh damping
+    // RE-ENABLED FOR TESTING
+    float fleshDampingMultiplier = gangBeastsSettings ? getFleshDampingMultiplier() : 1.0f;
+
     for (auto &p : points)
     {
         if (p.locked)
             continue;
         sf::Vector2f a = acceleration + gravity + p.acc;
-        sf::Vector2f velocity = (p.pos - p.prev_pos) * damping;
+
+        // Apply Gang Beasts flesh damping for more wobbliness
+        float effectiveDamping = damping;
+        if (p.body_part == BODY_PART::NONE)
+        { // Flesh points
+            effectiveDamping *= fleshDampingMultiplier;
+        }
+
+        sf::Vector2f velocity = (p.pos - p.prev_pos) * effectiveDamping;
         sf::Vector2f new_pos = p.pos + velocity + a * dt * dt;
         p.prev_pos = p.pos;
         p.pos = new_pos;
         p.acc = {0.f, 0.f};
     }
 
+    // 🎮 GANG BEASTS EVOLUTION: Update spring fatigue and advanced systems
+    // RE-ENABLED FOR TESTING
+    if (gangBeastsSettings)
+    {
+        updateSpringFatigue(dt);
+        updateAdvancedSpringSystems(dt); // Step 1.3: Advanced Spring System
+    }
+
     // STABLE CONSTRAINT SOLVER: Position-based dynamics approach
     for (int it = 0; it < iterations; ++it)
     {
-        for (auto &s : springs)
+        for (size_t springIdx = 0; springIdx < springs.size(); ++springIdx)
         {
+            Spring &s = springs[springIdx];
             Point &p1 = points[s.p1];
             Point &p2 = points[s.p2];
             if (p1.locked && p2.locked)
@@ -638,11 +677,54 @@ void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
             if (s.is_skeleton)
             {
                 effectiveStiffness *= stiffness_bone; // Skeleton springs are very rigid
+
+                // 🎮 GANG BEASTS EVOLUTION: Apply skeleton stiffness multiplier
+                // RE-ENABLED FOR TESTING
+                if (gangBeastsSettings)
+                {
+                    float gangBeastsMultiplier = getSkeletonStiffnessMultiplier(p1.body_part, p2.body_part);
+                    effectiveStiffness *= gangBeastsMultiplier;
+                }
+
+                // 🎮 GANG BEASTS EVOLUTION: Apply spring fatigue and advanced systems
+                // RE-ENABLED FOR TESTING ADVANCED SPRING SYSTEM
+                if (gangBeastsSettings)
+                {
+                    applySpringFatigue(springIdx, effectiveStiffness);
+
+                    // Step 1.3: Apply advanced spring system effects
+                    if (s.owner_id != 0)
+                    {
+                        // Apply context-aware stiffness
+                        auto springStateIt = advancedSpringStates.find(s.owner_id);
+                        if (springStateIt != advancedSpringStates.end())
+                        {
+                            effectiveStiffness *= springStateIt->second.current_stiffness_multiplier;
+
+                            // Apply spring strength overrides
+                            auto overrideIt = springStateIt->second.spring_strength_overrides.find(springIdx);
+                            if (overrideIt != springStateIt->second.spring_strength_overrides.end())
+                            {
+                                effectiveStiffness *= overrideIt->second;
+                            }
+                        }
+
+                        // Apply adaptive physics (but maintain original behavior by default)
+                        applyAdaptivePhysics(s.owner_id, springIdx, effectiveStiffness);
+                    }
+                }
             }
             else
             {
                 // Regular springs use ring/spoke stiffness
                 effectiveStiffness *= (s.p1 == 0 || s.p2 == 0) ? stiffness_spoke : stiffness_ring;
+
+                // 🎮 GANG BEASTS EVOLUTION: Apply flesh spring reduction
+                // RE-ENABLED FOR TESTING
+                if (gangBeastsSettings && p1.body_part == BODY_PART::NONE && p2.body_part == BODY_PART::NONE)
+                {
+                    effectiveStiffness *= (1.0f - gangBeastsSettings->physics_personality.flesh_springs.stiffness_reduction);
+                }
             }
 
             correction *= effectiveStiffness;
@@ -1097,4 +1179,672 @@ void Jelly::apply_postural_stability(uint64_t owner_id, float dt, float ground_y
         }
     };
     maintainHipHeight();
+}
+
+// 🎮 GANG BEASTS EVOLUTION: Settings Integration Implementation
+
+void Jelly::setGangBeastsSettings(const GangBeastsSettings::GangBeastsPhysicsSettings *settings)
+{
+    gangBeastsSettings = settings;
+    if (settings)
+    {
+        std::cout << "🎮 Gang Beasts physics settings applied to Jelly " << id << std::endl;
+    }
+}
+
+float Jelly::getSkeletonStiffnessMultiplier(BODY_PART partA, BODY_PART partB) const
+{
+    if (!gangBeastsSettings)
+        return 1.0f;
+
+    const auto &skeleton = gangBeastsSettings->physics_personality.skeleton_springs;
+    float baseMultiplier = skeleton.base_stiffness_multiplier;
+
+    // Determine joint type and apply specific looseness factor
+    auto isSpineJoint = [](BODY_PART part)
+    {
+        return part == BODY_PART::HEAD || part == BODY_PART::NECK ||
+               part == BODY_PART::SPINE_UP || part == BODY_PART::SPINE_MID ||
+               part == BODY_PART::SPINE_LOW || part == BODY_PART::PELVIS;
+    };
+
+    auto isArmJoint = [](BODY_PART part)
+    {
+        return part == BODY_PART::CLAV_R || part == BODY_PART::CLAV_L ||
+               part == BODY_PART::SHO_R || part == BODY_PART::SHO_L ||
+               part == BODY_PART::ELB_R || part == BODY_PART::ELB_L;
+    };
+
+    auto isWristJoint = [](BODY_PART part)
+    {
+        return part == BODY_PART::WRIST_R || part == BODY_PART::WRIST_L ||
+               part == BODY_PART::HAND_R || part == BODY_PART::HAND_L;
+    };
+
+    auto isLegJoint = [](BODY_PART part)
+    {
+        return part == BODY_PART::HIP_R || part == BODY_PART::HIP_L ||
+               part == BODY_PART::KNEE_R || part == BODY_PART::KNEE_L;
+    };
+
+    auto isAnkleJoint = [](BODY_PART part)
+    {
+        return part == BODY_PART::ANKLE_R || part == BODY_PART::ANKLE_L ||
+               part == BODY_PART::FOOT_R || part == BODY_PART::FOOT_L;
+    };
+
+    // Apply joint-specific looseness
+    float jointFactor = 1.0f;
+    if (isSpineJoint(partA) || isSpineJoint(partB))
+    {
+        jointFactor = skeleton.spine_joints;
+    }
+    else if (isWristJoint(partA) || isWristJoint(partB))
+    {
+        jointFactor = skeleton.wrist_joints;
+    }
+    else if (isArmJoint(partA) || isArmJoint(partB))
+    {
+        jointFactor = skeleton.arm_joints;
+    }
+    else if (isAnkleJoint(partA) || isAnkleJoint(partB))
+    {
+        jointFactor = skeleton.ankle_joints;
+    }
+    else if (isLegJoint(partA) || isLegJoint(partB))
+    {
+        jointFactor = skeleton.leg_joints;
+    }
+    else if (partA == BODY_PART::NECK || partB == BODY_PART::NECK)
+    {
+        jointFactor = skeleton.neck_joint;
+    }
+
+    return baseMultiplier * jointFactor;
+}
+
+float Jelly::getFleshDampingMultiplier() const
+{
+    if (!gangBeastsSettings)
+        return 1.0f;
+    return gangBeastsSettings->physics_personality.flesh_springs.damping_multiplier;
+}
+
+float Jelly::getMassMultiplier(BODY_PART bodyPart) const
+{
+    if (!gangBeastsSettings)
+        return 1.0f;
+
+    const auto &mass = gangBeastsSettings->physics_personality.mass_distribution;
+
+    switch (bodyPart)
+    {
+    case BODY_PART::HEAD:
+        return mass.head_mass_multiplier;
+    case BODY_PART::NECK:
+    case BODY_PART::SPINE_UP:
+    case BODY_PART::SPINE_MID:
+    case BODY_PART::SPINE_LOW:
+    case BODY_PART::PELVIS:
+    case BODY_PART::CLAV_R:
+    case BODY_PART::CLAV_L:
+        return mass.torso_mass_multiplier;
+    default:
+        return mass.limb_mass_multiplier;
+    }
+}
+
+void Jelly::updateSpringFatigue(float dt)
+{
+    if (!gangBeastsSettings || !gangBeastsSettings->physics_personality.spring_fatigue.enabled)
+    {
+        return;
+    }
+
+    const auto &fatigue = gangBeastsSettings->physics_personality.spring_fatigue;
+
+    for (size_t i = 0; i < springs.size(); ++i)
+    {
+        const Spring &spring = springs[i];
+
+        // Skip non-skeleton springs for fatigue
+        if (!spring.is_skeleton)
+            continue;
+
+        auto &state = springFatigueStates[i];
+
+        // Calculate current spring stress (how much it's stretched/compressed)
+        sf::Vector2f delta = points[spring.p2].pos - points[spring.p1].pos;
+        float current_length = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+        float stress = std::abs(current_length - spring.rest_length) / spring.rest_length;
+
+        // Apply fatigue based on stress
+        if (stress > 0.1f)
+        { // 10% deformation threshold
+            state.fatigue_accumulation += stress * fatigue.fatigue_rate * dt;
+        }
+        else
+        {
+            // Recovery when not stressed
+            state.fatigue_accumulation -= fatigue.recovery_rate * dt;
+        }
+
+        // Clamp fatigue accumulation
+        state.fatigue_accumulation = std::max(0.0f, std::min(1.0f, state.fatigue_accumulation));
+
+        // Calculate current strength
+        state.current_strength = fatigue.max_strength -
+                                 (state.fatigue_accumulation * (fatigue.max_strength - fatigue.min_strength));
+
+        state.is_fatigued = state.current_strength < 0.8f;
+    }
+}
+
+void Jelly::applySpringFatigue(int springIndex, float &stiffness)
+{
+    if (!gangBeastsSettings || !gangBeastsSettings->physics_personality.spring_fatigue.enabled)
+    {
+        return;
+    }
+
+    auto it = springFatigueStates.find(springIndex);
+    if (it != springFatigueStates.end())
+    {
+        stiffness *= it->second.current_strength;
+    }
+}
+
+void Jelly::apply_enhanced_postural_stability(uint64_t owner_id, float dt, float ground_y)
+{
+    if (!gangBeastsSettings)
+    {
+        // Fallback to original stability system
+        apply_postural_stability(owner_id, dt, ground_y);
+        return;
+    }
+
+    // Step 1.2: Enhanced postural stability with Gang Beasts personality
+    auto &posturalState = posturalStates[owner_id];
+    const auto &stability = gangBeastsSettings->postural_stability;
+
+    // Calculate current imbalance magnitude
+    float imbalance = calculateImbalanceMagnitude(owner_id, ground_y);
+    posturalState.imbalance_magnitude = imbalance;
+
+    // Check if should enter panic mode
+    bool shouldPanic = shouldEnterPanicMode(owner_id);
+    if (shouldPanic && !posturalState.is_panicking)
+    {
+        posturalState.is_panicking = true;
+        posturalState.reaction_timer = stability.reaction_timing.panic_reaction_delay;
+        if (gangBeastsSettings->debug.log_physics_events)
+        {
+            std::cout << "🚨 Player " << owner_id << " entering panic mode!" << std::endl;
+        }
+    }
+    else if (!shouldPanic && posturalState.is_panicking)
+    {
+        posturalState.is_panicking = false;
+        posturalState.reaction_timer = stability.reaction_timing.base_reaction_delay;
+    }
+
+    // Apply reaction delay
+    applyReactionDelay(owner_id, dt);
+
+    // If reaction timer hasn't expired, don't apply stability forces yet
+    if (posturalState.reaction_timer > 0.0f)
+    {
+        return;
+    }
+
+    // Apply original stability with modifications
+    apply_postural_stability(owner_id, dt, ground_y);
+
+    // Apply Gang Beasts enhancements after base stability
+    if (stability.overcompensation.enabled)
+    {
+        // Get recent stability forces and apply overcompensation
+        sf::Vector2f stabilityForce = posturalState.stability_momentum;
+        applyOvercompensation(owner_id, stabilityForce);
+
+        // Apply the overcompensated forces
+        auto part_indices = std::unordered_map<BODY_PART, int>();
+        for (size_t i = 0; i < points.size(); ++i)
+        {
+            if (points[i].id == owner_id && points[i].body_part != BODY_PART::NONE)
+            {
+                part_indices[points[i].body_part] = (int)i;
+            }
+        }
+
+        if (part_indices.find(BODY_PART::PELVIS) != part_indices.end())
+        {
+            int pelvis_idx = part_indices[BODY_PART::PELVIS];
+            points[pelvis_idx].acc += stabilityForce / points[pelvis_idx].mass;
+        }
+    }
+
+    // Update wobble decay
+    if (posturalState.wobble_decay_timer > 0.0f)
+    {
+        posturalState.wobble_decay_timer -= dt;
+        posturalState.stability_momentum *= stability.overcompensation.oscillation_damping;
+    }
+}
+
+float Jelly::calculateImbalanceMagnitude(uint64_t owner_id, float ground_y)
+{
+    // Find center of mass and base of support
+    sf::Vector2f com{0.0f, 0.0f};
+    float total_mass = 0.0f;
+    sf::Vector2f base_center{0.0f, 0.0f};
+    int foot_count = 0;
+
+    for (auto &p : points)
+    {
+        if (p.id == owner_id)
+        {
+            com += p.pos * p.mass;
+            total_mass += p.mass;
+
+            if (p.body_part == BODY_PART::FOOT_L || p.body_part == BODY_PART::FOOT_R)
+            {
+                base_center += p.pos;
+                foot_count++;
+            }
+        }
+    }
+
+    if (total_mass > 1e-6f)
+        com /= total_mass;
+    if (foot_count > 0)
+        base_center /= float(foot_count);
+
+    // Calculate horizontal displacement of COM from base
+    sf::Vector2f displacement = com - base_center;
+    displacement.y = 0.0f; // Only horizontal matters for balance
+
+    return std::sqrt(displacement.x * displacement.x + displacement.y * displacement.y);
+}
+
+void Jelly::applyReactionDelay(uint64_t owner_id, float dt)
+{
+    auto &posturalState = posturalStates[owner_id];
+    const auto &timing = gangBeastsSettings->postural_stability.reaction_timing;
+
+    if (posturalState.reaction_timer > 0.0f)
+    {
+        posturalState.reaction_timer -= dt;
+
+        // Speed up reaction if imbalance is getting worse
+        if (posturalState.imbalance_magnitude > 0.2f)
+        {
+            posturalState.reaction_timer -= dt * (timing.recovery_acceleration - 1.0f);
+        }
+
+        posturalState.reaction_timer = std::max(0.0f, posturalState.reaction_timer);
+    }
+}
+
+void Jelly::applyOvercompensation(uint64_t owner_id, sf::Vector2f &stabilityForce)
+{
+    auto &posturalState = posturalStates[owner_id];
+    const auto &overcomp = gangBeastsSettings->postural_stability.overcompensation;
+
+    // Amplify the stability force
+    stabilityForce *= overcomp.overcompensation_factor;
+
+    // Add to momentum for oscillation effects
+    posturalState.stability_momentum += stabilityForce * 0.1f;
+
+    // Start wobble decay timer
+    posturalState.wobble_decay_timer = overcomp.wobble_decay_time;
+
+    // Add some randomness for comedy
+    if (posturalState.is_panicking)
+    {
+        sf::Vector2f randomWobble{
+            (std::rand() % 200 - 100) / 100.0f * 5.0f,
+            0.0f};
+        stabilityForce += randomWobble;
+    }
+}
+
+bool Jelly::shouldEnterPanicMode(uint64_t owner_id)
+{
+    const auto &sensitivity = gangBeastsSettings->postural_stability.sensitivity;
+    auto &posturalState = posturalStates[owner_id];
+
+    return posturalState.imbalance_magnitude > sensitivity.panic_threshold;
+}
+
+// ====================================================================
+// 🔧 STEP 1.3: ADVANCED SPRING SYSTEM IMPLEMENTATION
+// ====================================================================
+
+void Jelly::updateAdvancedSpringSystems(float dt)
+{
+    if (!hasGangBeastsSettings())
+        return;
+
+    // Update all advanced spring system components for each owner
+    for (auto &[owner_id, springState] : advancedSpringStates)
+    {
+        updateContextAwareStiffness(owner_id, dt);
+        updateSpringAnimationSystem(owner_id, dt);
+        updateSpringStrengthModulation(owner_id, dt);
+        updateAdaptivePhysics(owner_id, dt);
+    }
+}
+
+void Jelly::updateContextAwareStiffness(uint64_t owner_id, float dt)
+{
+    if (!gangBeastsSettings->advanced_spring_system.context_aware_stiffness.enabled)
+        return;
+
+    auto &springState = advancedSpringStates[owner_id];
+    const auto &contextStiffness = gangBeastsSettings->advanced_spring_system.context_aware_stiffness;
+
+    // Detect current physics state
+    PhysicsState newState = detectPhysicsState(owner_id);
+
+    // Handle state transitions
+    if (newState != springState.current_state)
+    {
+        springState.previous_state = springState.current_state;
+        springState.current_state = newState;
+        springState.transition_timer = 0.0f;
+        springState.state_duration = 0.0f;
+    }
+
+    // Update timers
+    springState.transition_timer += dt;
+    springState.state_duration += dt;
+
+    // Determine target stiffness based on state
+    float targetMultiplier = 1.0f; // Default (original behavior)
+    switch (springState.current_state)
+    {
+    case PhysicsState::WALKING:
+        targetMultiplier = contextStiffness.walking_stiffness_multiplier;
+        break;
+    case PhysicsState::JUMPING:
+        targetMultiplier = contextStiffness.jumping_stiffness_multiplier;
+        break;
+    case PhysicsState::FALLING:
+        targetMultiplier = contextStiffness.falling_stiffness_multiplier;
+        break;
+    case PhysicsState::GRABBING:
+        targetMultiplier = contextStiffness.grabbing_stiffness_multiplier;
+        break;
+    case PhysicsState::IDLE:
+    default:
+        targetMultiplier = contextStiffness.idle_stiffness_multiplier;
+        break;
+    }
+
+    springState.target_stiffness_multiplier = targetMultiplier;
+
+    // Smooth transition to target stiffness
+    float transitionSpeed = contextStiffness.transition_speed;
+    float diff = springState.target_stiffness_multiplier - springState.current_stiffness_multiplier;
+    springState.current_stiffness_multiplier += diff * transitionSpeed * dt;
+
+    // Clamp to prevent instability
+    springState.current_stiffness_multiplier = std::max(0.1f, std::min(2.0f, springState.current_stiffness_multiplier));
+}
+
+void Jelly::updateSpringAnimationSystem(uint64_t owner_id, float dt)
+{
+    if (!gangBeastsSettings->advanced_spring_system.spring_animation_system.enabled)
+        return;
+
+    auto &springState = advancedSpringStates[owner_id];
+    const auto &animSystem = gangBeastsSettings->advanced_spring_system.spring_animation_system;
+
+    // Update active animations
+    for (auto &animation : springState.active_animations)
+    {
+        animation.progress += dt / animation.duration;
+
+        // Handle looping animations
+        if (animation.is_looping && animation.progress >= 1.0f)
+        {
+            animation.progress = std::fmod(animation.progress, 1.0f);
+        }
+    }
+
+    // Remove completed non-looping animations
+    springState.active_animations.erase(
+        std::remove_if(springState.active_animations.begin(), springState.active_animations.end(),
+                       [](const AdvancedSpringState::ActiveAnimation &anim)
+                       {
+                           return !anim.is_looping && anim.progress >= 1.0f;
+                       }),
+        springState.active_animations.end());
+
+    // Limit concurrent animations
+    if (springState.active_animations.size() > (size_t)animSystem.max_concurrent_animations)
+    {
+        // Sort by priority and keep highest priority animations
+        std::sort(springState.active_animations.begin(), springState.active_animations.end(),
+                  [](const auto &a, const auto &b)
+                  { return a.priority > b.priority; });
+        springState.active_animations.resize(animSystem.max_concurrent_animations);
+    }
+}
+
+void Jelly::updateSpringStrengthModulation(uint64_t owner_id, float dt)
+{
+    if (!gangBeastsSettings->advanced_spring_system.spring_strength_modulation.enabled)
+        return;
+
+    auto &springState = advancedSpringStates[owner_id];
+    const auto &strengthMod = gangBeastsSettings->advanced_spring_system.spring_strength_modulation;
+
+    // Clear previous overrides
+    springState.spring_strength_overrides.clear();
+
+    // Apply strength factors based on current state and actions
+    float legStrength = 1.0f;  // Default (original behavior)
+    float armStrength = 1.0f;  // Default (original behavior)
+    float coreStrength = 1.0f; // Default (original behavior)
+
+    switch (springState.current_state)
+    {
+    case PhysicsState::WALKING:
+        legStrength = strengthMod.action_strength_factors.walking_leg_strength;
+        armStrength = strengthMod.action_strength_factors.walking_arm_strength;
+        break;
+    case PhysicsState::JUMPING:
+        legStrength = strengthMod.action_strength_factors.jumping_leg_strength;
+        break;
+    case PhysicsState::FALLING:
+        legStrength = strengthMod.action_strength_factors.landing_leg_strength;
+        break;
+    case PhysicsState::GRABBING:
+        armStrength = strengthMod.action_strength_factors.grabbing_arm_strength;
+        break;
+    case PhysicsState::WAVING:
+        armStrength = strengthMod.action_strength_factors.waving_arm_strength;
+        break;
+    default:
+        coreStrength = strengthMod.action_strength_factors.balancing_core_strength;
+        break;
+    }
+
+    // Apply strength modulation to relevant springs
+    for (size_t i = 0; i < springs.size(); ++i)
+    {
+        if (springs[i].owner_id != owner_id)
+            continue;
+
+        // Determine spring type and apply appropriate strength
+        // This is a simplified approach - in a full implementation,
+        // you'd categorize springs by body region
+        if (springs[i].is_skeleton)
+        {
+            // For now, apply the current stiffness multiplier from context-aware system
+            springState.spring_strength_overrides[i] = springState.current_stiffness_multiplier;
+        }
+    }
+}
+
+void Jelly::updateAdaptivePhysics(uint64_t owner_id, float dt)
+{
+    if (!gangBeastsSettings->advanced_spring_system.adaptive_physics.enabled)
+        return;
+
+    auto &springState = advancedSpringStates[owner_id];
+    auto &adaptiveState = springState.adaptive_state;
+    const auto &adaptiveSettings = gangBeastsSettings->advanced_spring_system.adaptive_physics;
+
+    // Update stress response if enabled
+    if (adaptiveSettings.stress_response.enabled)
+    {
+        // Decay stress over time
+        adaptiveState.stress_level *= std::pow(0.5f, dt / adaptiveSettings.stress_response.recovery_time);
+
+        // Apply stress weakening (but only if learning rate > 0)
+        if (adaptiveSettings.learning_rate > 0.0f && adaptiveState.stress_level > adaptiveSettings.stress_response.stress_threshold)
+        {
+            // In a full implementation, this would weaken springs under stress
+            // For now, we maintain original behavior by not applying weakening
+        }
+    }
+
+    // Update adaptation memory
+    adaptiveState.last_adaptation_time += dt;
+
+    // Decay learned adaptations over time
+    if (adaptiveState.last_adaptation_time > adaptiveSettings.adaptation_memory)
+    {
+        for (auto &[springIndex, learnedStiffness] : adaptiveState.learned_stiffness)
+        {
+            // Gradually return to original values
+            learnedStiffness += (1.0f - learnedStiffness) * dt * 0.1f;
+        }
+    }
+}
+
+// State detection methods
+Jelly::PhysicsState Jelly::detectPhysicsState(uint64_t owner_id) const
+{
+    // Simple state detection based on physics properties
+    // In a full implementation, this would analyze velocity, ground contact, etc.
+
+    // For now, default to IDLE to maintain original behavior
+    return PhysicsState::IDLE;
+}
+
+bool Jelly::isWalking(uint64_t owner_id) const
+{
+    // Placeholder - would analyze horizontal velocity and ground contact
+    return false;
+}
+
+bool Jelly::isJumping(uint64_t owner_id) const
+{
+    // Placeholder - would analyze upward velocity
+    return false;
+}
+
+bool Jelly::isFalling(uint64_t owner_id) const
+{
+    // Placeholder - would analyze downward velocity and ground distance
+    return false;
+}
+
+bool Jelly::isGrabbing(uint64_t owner_id) const
+{
+    // Placeholder - would check for grab actions
+    return false;
+}
+
+// Animation system methods
+void Jelly::startSpringAnimation(uint64_t owner_id, const std::string &animationName, float duration, int priority, bool looping)
+{
+    if (!gangBeastsSettings->advanced_spring_system.spring_animation_system.enabled)
+        return;
+
+    auto &springState = advancedSpringStates[owner_id];
+
+    // Check if animation already exists
+    for (auto &anim : springState.active_animations)
+    {
+        if (anim.name == animationName)
+        {
+            // Update existing animation
+            anim.duration = duration;
+            anim.priority = priority;
+            anim.is_looping = looping;
+            anim.progress = 0.0f; // Restart
+            return;
+        }
+    }
+
+    // Add new animation
+    AdvancedSpringState::ActiveAnimation newAnim;
+    newAnim.name = animationName;
+    newAnim.duration = duration;
+    newAnim.priority = priority;
+    newAnim.is_looping = looping;
+    newAnim.progress = 0.0f;
+
+    springState.active_animations.push_back(newAnim);
+}
+
+void Jelly::stopSpringAnimation(uint64_t owner_id, const std::string &animationName)
+{
+    auto &springState = advancedSpringStates[owner_id];
+
+    springState.active_animations.erase(
+        std::remove_if(springState.active_animations.begin(), springState.active_animations.end(),
+                       [&animationName](const auto &anim)
+                       { return anim.name == animationName; }),
+        springState.active_animations.end());
+}
+
+float Jelly::getAnimationStrengthMultiplier(uint64_t owner_id, const std::string &bodyRegion) const
+{
+    // Placeholder - would return strength multiplier based on active animations
+    // For now, return 1.0 to maintain original behavior
+    return 1.0f;
+}
+
+// Adaptive physics methods
+void Jelly::applyAdaptivePhysics(uint64_t owner_id, int springIndex, float &stiffness)
+{
+    if (!gangBeastsSettings->advanced_spring_system.adaptive_physics.enabled)
+        return;
+    if (gangBeastsSettings->advanced_spring_system.adaptive_physics.learning_rate <= 0.0f)
+        return;
+
+    auto &springState = advancedSpringStates[owner_id];
+    auto &adaptiveState = springState.adaptive_state;
+
+    // Apply learned stiffness if available
+    auto it = adaptiveState.learned_stiffness.find(springIndex);
+    if (it != adaptiveState.learned_stiffness.end())
+    {
+        stiffness *= it->second;
+    }
+}
+
+void Jelly::recordSpringStress(uint64_t owner_id, int springIndex, float stress)
+{
+    if (!gangBeastsSettings->advanced_spring_system.adaptive_physics.enabled)
+        return;
+    if (!gangBeastsSettings->advanced_spring_system.adaptive_physics.stress_response.enabled)
+        return;
+
+    auto &springState = advancedSpringStates[owner_id];
+    auto &adaptiveState = springState.adaptive_state;
+
+    // Accumulate stress
+    adaptiveState.stress_level = std::max(adaptiveState.stress_level, stress);
+    adaptiveState.accumulated_forces += stress;
+
+    // For now, don't modify learned stiffness to maintain original behavior
+    // In full implementation, this would adapt spring properties based on stress
 }

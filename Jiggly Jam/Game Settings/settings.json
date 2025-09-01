@@ -1,0 +1,205 @@
+{
+  "gang_beasts_physics": {
+    "version": "1.0",
+    "description": "Gang Beasts Evolution - COMPLETELY DISABLED - All Original Values",
+
+    "physics_personality": {
+      "description": "Step 1.1 - Physics Personality Tuning (COMPLETELY DISABLED)",
+
+      "skeleton_springs": {
+        "description": "Controls skeleton spring stiffness for looseness",
+        "base_stiffness_multiplier": 1.0,
+        "comment": "1.0 = Original skeleton spring stiffness (no changes)",
+
+        "spine_joints": 1.0,
+        "arm_joints": 1.0,
+        "leg_joints": 1.0,
+        "neck_joint": 1.0,
+        "wrist_joints": 1.0,
+        "ankle_joints": 1.0
+      },
+
+      "flesh_springs": {
+        "description": "Controls flesh spring behavior for wobbliness",
+        "damping_multiplier": 1.0,
+        "comment": "1.0 = Original damping (no changes)",
+        "stiffness_reduction": 0.0,
+        "wobble_frequency": 1.0,
+        "wobble_amplitude": 1.0
+      },
+
+      "mass_distribution": {
+        "description": "Mass tuning for top-heavy instability",
+        "head_mass_multiplier": 1.0,
+        "torso_mass_multiplier": 1.0,
+        "limb_mass_multiplier": 1.0,
+        "comment": "All 1.0 = original mass distribution (no changes)"
+      },
+
+      "spring_fatigue": {
+        "description": "Spring strength reduction over time for realism",
+        "enabled": false,
+        "fatigue_rate": 0.0,
+        "recovery_rate": 0.0,
+        "min_strength": 1.0,
+        "max_strength": 1.0,
+        "comment": "Disabled completely"
+      }
+    },
+
+    "postural_stability": {
+      "description": "Step 1.2 - Enhanced Postural Stability (COMPLETELY DISABLED)",
+
+      "reaction_timing": {
+        "description": "Delays and timing for stability responses",
+        "base_reaction_delay": 0.0,
+        "comment": "0.0 = No delay, original instant stability response",
+        "panic_reaction_delay": 0.0,
+        "recovery_acceleration": 1.0
+      },
+
+      "overcompensation": {
+        "description": "Comic overreaction parameters",
+        "enabled": false,
+        "overcompensation_factor": 1.0,
+        "comment": "1.0 = Original balance strength, no overcompensation",
+        "oscillation_damping": 1.0,
+        "wobble_decay_time": 0.0
+      },
+
+      "sensitivity": {
+        "description": "How sensitive the stability system is",
+        "balance_threshold": 0.12,
+        "comment": "Original threshold values from existing code",
+        "panic_threshold": 0.25,
+        "recovery_threshold": 0.05,
+        "ground_detection_tolerance": 8.0
+      },
+
+      "comedy_modes": {
+        "description": "Special modes for testing and fun",
+        "drunk_walking": {
+          "enabled": false,
+          "sway_amplitude": 0.0,
+          "sway_frequency": 0.0,
+          "random_stumble_chance": 0.0,
+          "reaction_delay_multiplier": 1.0
+        },
+        "nervous_character": {
+          "enabled": false,
+          "overreaction_multiplier": 1.0,
+          "fidget_frequency": 0.0,
+          "balance_sensitivity": 1.0
+        },
+        "confident_character": {
+          "enabled": false,
+          "stability_confidence": 1.0,
+          "reaction_delay_reduction": 1.0,
+          "swagger_amplitude": 0.0
+        }
+      }
+    },
+
+    "advanced_spring_system": {
+      "description": "Step 1.3 - Advanced Spring System with Context-Aware Behavior",
+
+      "context_aware_stiffness": {
+        "description": "Dynamic spring behavior based on situation",
+        "enabled": true,
+        "comment": "System enabled but all multipliers at 1.0 = original behavior",
+
+        "walking_stiffness_multiplier": 1.0,
+        "comment_walking": "1.0 = original stiffness during walking",
+        "jumping_stiffness_multiplier": 1.0,
+        "falling_stiffness_multiplier": 1.0,
+        "grabbing_stiffness_multiplier": 1.0,
+        "idle_stiffness_multiplier": 1.0,
+
+        "transition_speed": 2.0,
+        "comment_transition": "How fast spring stiffness changes between contexts"
+      },
+
+      "spring_animation_system": {
+        "description": "Keyframe-based spring animation for complex movements",
+        "enabled": true,
+        "comment": "System enabled, ready for complex animations",
+
+        "max_concurrent_animations": 8,
+        "animation_blend_time": 0.3,
+        "comment_blend": "Time to blend between spring animations",
+
+        "keyframe_interpolation": "smooth",
+        "comment_interpolation": "smooth, linear, or stepped interpolation",
+
+        "priority_system": {
+          "walking_priority": 3,
+          "jumping_priority": 5,
+          "falling_priority": 7,
+          "grabbing_priority": 6,
+          "waving_priority": 2,
+          "idle_priority": 1
+        }
+      },
+
+      "spring_strength_modulation": {
+        "description": "Dynamic spring strength during actions",
+        "enabled": true,
+        "comment": "All modulation factors at 1.0 = original strength",
+
+        "action_strength_factors": {
+          "walking_leg_strength": 1.0,
+          "walking_arm_strength": 1.0,
+          "jumping_leg_strength": 1.0,
+          "landing_leg_strength": 1.0,
+          "grabbing_arm_strength": 1.0,
+          "waving_arm_strength": 1.0,
+          "balancing_core_strength": 1.0
+        },
+
+        "modulation_smoothing": 3.0,
+        "comment_smoothing": "How smooth strength changes are (higher = smoother)"
+      },
+
+      "adaptive_physics": {
+        "description": "Springs adapt to player behavior and situation",
+        "enabled": true,
+        "comment": "Adaptation enabled but conservative settings",
+
+        "learning_rate": 0.0,
+        "comment_learning": "0.0 = no adaptation yet, 1.0 = full adaptation",
+        "adaptation_memory": 5.0,
+        "comment_memory": "How long springs remember adaptations",
+
+        "stress_response": {
+          "enabled": false,
+          "stress_threshold": 2.0,
+          "recovery_time": 3.0,
+          "stress_weakening": 0.0
+        }
+      }
+    },
+
+    "performance": {
+      "description": "Performance and optimization settings",
+      "physics_substeps": 3,
+      "stability_update_frequency": 60,
+      "spring_animation_precision": 0.01,
+      "force_calculation_threshold": 0.1,
+      "spring_system_update_frequency": 60,
+      "context_detection_frequency": 30
+    },
+
+    "debug": {
+      "description": "Debug and visualization settings",
+      "show_stability_forces": false,
+      "show_spring_stress": false,
+      "show_mass_distribution": false,
+      "show_spring_contexts": false,
+      "show_spring_animations": false,
+      "show_spring_strength_modulation": false,
+      "log_physics_events": false,
+      "log_spring_events": false,
+      "performance_profiling": false
+    }
+  }
+}

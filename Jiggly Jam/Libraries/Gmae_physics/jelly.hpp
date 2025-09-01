@@ -1,5 +1,6 @@
 #pragma once
 #include "../libs.hpp"
+#include "../settings_perser.hpp"
 
 enum class FORCE_TYPE
 {
@@ -141,7 +142,118 @@ public:
     // map BODY_PART -> point index for helper wiring
     std::unordered_map<BODY_PART, int> part_index;
 
+    // 🎮 GANG BEASTS EVOLUTION: Settings Integration
+    const GangBeastsSettings::GangBeastsPhysicsSettings *gangBeastsSettings = nullptr;
+
+    // Step 1.1: Physics Personality members
+    struct SpringFatigueState
+    {
+        float current_strength = 1.0f;
+        float fatigue_accumulation = 0.0f;
+        bool is_fatigued = false;
+    };
+    std::unordered_map<int, SpringFatigueState> springFatigueStates; // spring index -> fatigue state
+
+    // Step 1.2: Enhanced Postural Stability members
+    struct PosturalState
+    {
+        float reaction_timer = 0.0f;                 // Delay before stability kicks in
+        float imbalance_magnitude = 0.0f;            // Current imbalance level
+        bool is_panicking = false;                   // In panic mode (stronger reactions)
+        sf::Vector2f stability_momentum{0.0f, 0.0f}; // Accumulated stability forces
+        float wobble_decay_timer = 0.0f;             // Timer for wobble decay
+    };
+    std::unordered_map<uint64_t, PosturalState> posturalStates; // owner_id -> postural state
+
     float get_radius() const { return radius; }
+
+    // 🎮 GANG BEASTS EVOLUTION: Settings Management
+    void setGangBeastsSettings(const GangBeastsSettings::GangBeastsPhysicsSettings *settings);
+    bool hasGangBeastsSettings() const { return gangBeastsSettings != nullptr; }
+
+    // Step 1.1: Physics Personality Methods
+    float getSkeletonStiffnessMultiplier(BODY_PART partA, BODY_PART partB) const;
+    float getFleshDampingMultiplier() const;
+    float getMassMultiplier(BODY_PART bodyPart) const;
+    void updateSpringFatigue(float dt);
+    void applySpringFatigue(int springIndex, float &stiffness);
+
+    // Step 1.2: Enhanced Postural Stability Methods
+    void apply_enhanced_postural_stability(uint64_t owner_id, float dt, float ground_y = 400.f);
+    float calculateImbalanceMagnitude(uint64_t owner_id, float ground_y);
+    void applyReactionDelay(uint64_t owner_id, float dt);
+    void applyOvercompensation(uint64_t owner_id, sf::Vector2f &stabilityForce);
+    bool shouldEnterPanicMode(uint64_t owner_id);
+
+    // Step 1.3: Advanced Spring System members
+    enum class PhysicsState
+    {
+        IDLE,
+        WALKING,
+        JUMPING,
+        FALLING,
+        GRABBING,
+        WAVING
+    };
+
+    struct AdvancedSpringState
+    {
+        PhysicsState current_state = PhysicsState::IDLE;
+        PhysicsState previous_state = PhysicsState::IDLE;
+        float transition_timer = 0.0f; // For smooth transitions
+        float state_duration = 0.0f;   // How long in current state
+
+        // Context-aware stiffness
+        float current_stiffness_multiplier = 1.0f;
+        float target_stiffness_multiplier = 1.0f;
+
+        // Spring animation system
+        struct ActiveAnimation
+        {
+            std::string name;
+            float progress = 0.0f; // 0.0 to 1.0
+            float duration = 1.0f;
+            int priority = 0;
+            bool is_looping = false;
+        };
+        std::vector<ActiveAnimation> active_animations;
+
+        // Dynamic strength modulation per spring type
+        std::unordered_map<int, float> spring_strength_overrides; // spring index -> strength multiplier
+
+        // Adaptive physics
+        struct AdaptiveState
+        {
+            float stress_level = 0.0f;
+            float accumulated_forces = 0.0f;
+            float last_adaptation_time = 0.0f;
+            std::unordered_map<int, float> learned_stiffness; // spring index -> learned stiffness
+        } adaptive_state;
+    };
+    std::unordered_map<uint64_t, AdvancedSpringState> advancedSpringStates; // owner_id -> spring state
+
+    // Step 1.3: Advanced Spring System Methods
+    void updateAdvancedSpringSystems(float dt);
+    void updateContextAwareStiffness(uint64_t owner_id, float dt);
+    void updateSpringAnimationSystem(uint64_t owner_id, float dt);
+    void updateSpringStrengthModulation(uint64_t owner_id, float dt);
+    void updateAdaptivePhysics(uint64_t owner_id, float dt);
+
+    // State detection methods
+    PhysicsState detectPhysicsState(uint64_t owner_id) const;
+    bool isWalking(uint64_t owner_id) const;
+    bool isJumping(uint64_t owner_id) const;
+    bool isFalling(uint64_t owner_id) const;
+    bool isGrabbing(uint64_t owner_id) const;
+
+    // Animation system methods
+    void startSpringAnimation(uint64_t owner_id, const std::string &animationName, float duration, int priority, bool looping = false);
+    void stopSpringAnimation(uint64_t owner_id, const std::string &animationName);
+    float getAnimationStrengthMultiplier(uint64_t owner_id, const std::string &bodyRegion) const;
+
+    // Adaptive physics methods
+    void applyAdaptivePhysics(uint64_t owner_id, int springIndex, float &stiffness);
+    void recordSpringStress(uint64_t owner_id, int springIndex, float stress);
 
     Jelly(int n, float r, sf::Vector2f c);
 };

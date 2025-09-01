@@ -421,7 +421,16 @@ void Player::update(float dt)
 
     // 🦴 STEP 1: ALWAYS apply physiological reflexes (postural stability)
     // This is the foundation - like human unconscious balance systems
-    figure.apply_postural_stability(this->ID, dt, ground_level);
+    if (gangBeastsPhysicsEnabled && figure.hasGangBeastsSettings())
+    {
+        // 🎮 GANG BEASTS EVOLUTION: Use enhanced postural stability
+        figure.apply_enhanced_postural_stability(this->ID, dt, ground_level);
+    }
+    else
+    {
+        // Original stability system
+        figure.apply_postural_stability(this->ID, dt, ground_level);
+    }
 
     // 🎮 STEP 2: Apply intentional control system on top of stable base
     if (useAdvancedControls && bodyControlSystem)
@@ -841,4 +850,39 @@ void Player::clearWaveTargets()
 {
     figure.clear_part_target(ID, BODY_PART::HAND_R);
     figure.clear_part_target(ID, BODY_PART::ELB_R);
+}
+
+// 🎮 GANG BEASTS EVOLUTION: Settings Management Implementation
+
+bool Player::loadGangBeastsSettings(const std::string &settingsPath)
+{
+    if (!settingsParser)
+    {
+        std::cout << "⚠️ Settings parser not initialized!" << std::endl;
+        return false;
+    }
+
+    bool success = settingsParser->loadSettings(settingsPath);
+
+    // Apply settings to physics system
+    if (success && gangBeastsPhysicsEnabled)
+    {
+        const auto &settings = settingsParser->getSettings();
+        figure.setGangBeastsSettings(&settings);
+
+        std::cout << "🎮 Gang Beasts physics enabled for Player " << ID << std::endl;
+        std::cout << "⚙️ Skeleton stiffness: " << (settings.physics_personality.skeleton_springs.base_stiffness_multiplier * 100) << "%" << std::endl;
+        std::cout << "⚖️ Stability delay: " << (settings.postural_stability.reaction_timing.base_reaction_delay * 1000) << "ms" << std::endl;
+    }
+
+    return success;
+}
+
+const GangBeastsSettings::GangBeastsPhysicsSettings *Player::getGangBeastsSettings() const
+{
+    if (!settingsParser || !settingsParser->isLoaded())
+    {
+        return nullptr;
+    }
+    return &settingsParser->getSettings();
 }
