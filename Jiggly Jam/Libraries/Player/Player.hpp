@@ -1,9 +1,11 @@
 #pragma once
 
-#include "libs.hpp"
-#include "jelly.hpp"
+#include "../libs.hpp"
+#include "../Gmae_physics/jelly.hpp"
+#include "../Controll_system/BodyControlSystem.hpp"
 #include <chrono>
 #include <random>
+#include <memory>
 
 enum class MOVE_TYPE
 {
@@ -14,16 +16,11 @@ enum class MOVE_TYPE
     UP_RIGHT,
     UP_LEFT,
     DOWN_RIGHT,
-    DOWN_LEFT
+    DOWN_LEFT,
+    NONE // Added for no input state
 };
-uint64_t generateID()
-{
-    auto now = std::chrono::high_resolution_clock::now();
-    uint64_t time = now.time_since_epoch().count();
-    std::mt19937_64 rng(time);
 
-    return rng();
-}
+uint64_t generateID();
 
 class Player
 {
@@ -36,30 +33,39 @@ protected:
     bool onGround;
     float health;
     bool alive;
-    // continuous movement force (per-second style). kept small because impulses do the bulk of movement.
+
+    // Traditional movement system (kept for compatibility)
     float move_force = 20000.f;
-    // instantaneous lateral impulse (used for snappy, dt-independent movement). Lowered for less sensitivity.
     float move_impulse = 400.f;
     float jump_force = 600.f;
-    // desired steady walk speed when holding movement (pixels per physics step)
     float walk_speed = 2.2f;
-    // tuning: increase move force for stronger lateral movement
-    // you can tweak this at runtime or per-player for control feel
-    // float move_force = 20000.f;
     float coyoteTimer = 0.f;
-    // movement state for edge detection and momentum
     int last_move_sign = 0; // -1,0,1
     float air_drag = 4.f;   // per-second horizontal damping when not pressing
+
+    // Advanced body control system
+    std::unique_ptr<BodyControlSystem> bodyControlSystem;
+    bool useAdvancedControls = true; // Toggle between simple and advanced controls
+
     void create_figure();
     // ground / contact tuning
     float ground_level = 600.f;
     float ground_restitution = 0.35f; // bounce
     float ground_friction = 0.6f;     // 0..1, larger = more friction (slows horizontal vel)
+
 public:
-    // public input enum (set this from your input manager keyed by player ID)
-    MOVE_TYPE input = MOVE_TYPE::DOWN;
-    // remember previous input so we can apply one-shot impulses on transitions
-    MOVE_TYPE last_input = MOVE_TYPE::DOWN;
+    // Legacy input system (for simple controls)
+    MOVE_TYPE input = MOVE_TYPE::NONE;
+    MOVE_TYPE last_input = MOVE_TYPE::NONE;
+
+    // Constructor that takes window for input system
+    Player(std::string c, sf::RenderWindow *window = nullptr);
+    ~Player();
+
+    // Control system management
+    void setAdvancedControls(bool enabled) { useAdvancedControls = enabled; }
+    bool isUsingAdvancedControls() const { return useAdvancedControls; }
+    BodyControlSystem *getControlSystem() const { return bodyControlSystem.get(); }
 
     // setters for external input manager
     void set_input(MOVE_TYPE m) { input = m; }
@@ -84,24 +90,47 @@ public:
 
     // runtime
     void update(float dt);
+    void updateSimpleControls(float dt); // Legacy control system
+    void updatePhysics(float dt);        // Common physics update
     void set_onGround(bool g);
     // explicit edge-triggered jump request (call from input manager on button-down)
     void request_jump();
 
-    Player(std::string c);
-    ~Player();
+    // Draw control system debug info
+    void drawControlDebug(sf::RenderWindow &window);
 };
 
-Player::Player(std::string c) : velocity(0.f, 0.f), acceleration(0.f, 0.f), height(100.f), weight(70.f), alive(true), onGround(true), health(100.f), color(c)
+// Updated constructor implementation
+inline Player::Player(std::string c, sf::RenderWindow *window)
+    : velocity(0.f, 0.f), acceleration(0.f, 0.f), height(100.f), weight(70.f),
+      alive(true), onGround(true), health(100.f), color(c)
 {
-    // for position need to create random position and place there!
-    // position {random,random}
     ID = generateID();
     create_figure();
+
+    // Initialize advanced control system if window provided
+    if (window != nullptr)
+    {
+        bodyControlSystem = std::make_unique<BodyControlSystem>(window);
+        std::cout << "🎮 Player " << ID << " initialized with advanced controls!" << std::endl;
+    }
+    else
+    {
+        useAdvancedControls = false;
+        std::cout << "🎮 Player " << ID << " initialized with simple controls!" << std::endl;
+    }
 }
 
-Player::~Player()
+inline Player::~Player()
 {
+}
+
+inline void Player::drawControlDebug(sf::RenderWindow &window)
+{
+    if (useAdvancedControls && bodyControlSystem)
+    {
+        bodyControlSystem->draw(window);
+    }
 }
 
 // PlayerControl: a Player subclass that adds mapped part controls (e.g., waving)

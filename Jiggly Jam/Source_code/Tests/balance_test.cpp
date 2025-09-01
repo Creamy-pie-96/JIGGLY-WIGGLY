@@ -1,8 +1,7 @@
 #include <iostream>
 #include <vector>
-#include "libs.hpp"
-#include "Player.hpp"
-#include "Player.cpp"
+#include "../../Libraries/libs.hpp"
+#include "../../Libraries/Player/Player.hpp"
 
 int main()
 {

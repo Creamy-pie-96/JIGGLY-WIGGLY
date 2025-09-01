@@ -1,5 +1,5 @@
-#include "jelly.hpp"
-#include "libs.hpp"
+#include "../../Libraries/Gmae_physics/jelly.hpp"
+#include "../../Libraries/libs.hpp"
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <cmath>

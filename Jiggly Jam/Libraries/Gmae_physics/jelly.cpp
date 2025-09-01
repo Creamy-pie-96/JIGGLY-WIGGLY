@@ -1,203 +1,70 @@
-#pragma once
-#include "libs.hpp"
+#include "jelly.hpp"
+#include <cmath>
+#include <unordered_map>
+#include <deque>
 
-enum class FORCE_TYPE
+// Helper function for unique ID generation
+uint64_t generateID()
 {
-    GLOBAL_FORCE,
-    LOCAL_FORCE,
-    IMPULSE_FORCE
-};
-enum class BODY_PART
+    static uint64_t counter = 1;
+    return counter++;
+}
+
+void Jelly::add_point(const sf::Vector2f &pos, BODY_PART body_part)
 {
-    // Core skeleton joints (canonical 20-joint rig)
-    HEAD,
-    NECK,
-    SPINE_UP,  // Upper spine/chest
-    SPINE_MID, // Middle spine
-    SPINE_LOW, // Lower spine/pelvis connection
-    CLAV_R,    // Right clavicle
-    CLAV_L,    // Left clavicle
-    SHO_R,     // Right Shoulder
-    ELB_R,     // Right Elbow
-    WRIST_R,   // Right Wrist
-    HAND_R,    // Right Hand
-    SHO_L,     // Left Shoulder
-    ELB_L,     // Left Elbow
-    WRIST_L,   // Left Wrist
-    HAND_L,    // Left Hand
-    PELVIS,    // Central pelvis/waist
-    HIP_L,     // Left Hip
-    KNEE_L,    // Left Knee
-    ANKLE_L,   // Left Ankle
-    FOOT_L,    // Left Foot
-    HIP_R,     // Right Hip
-    KNEE_R,    // Right Knee
-    ANKLE_R,   // Right Ankle
-    FOOT_R,    // Right Foot
-    NONE       // Flesh points (not skeleton)
-};
-struct Point
-{
-    sf::Vector2f pos, prev_pos, acc = {0.f, 0.f};
+    // Game-physics based mass distribution for proper balance
+    float mass = 1.0f; // default
 
-    bool locked = false;
-    float mass = 0.0001f;
-    BODY_PART body_part;
-    uint64_t id;
-};
-struct Spring
-{
-    int p1, p2;
-    float rest_length;
-    // per-spring stiffness multiplier (0..1) to allow stronger skeleton springs
-    float stiffness = 1.f;
-    // mark if this spring is part of skeleton wiring
-    bool is_skeleton = false;
-    // owner id (player id) for skeleton springs, 0 = none
-    uint64_t owner_id = 0;
-};
-
-class Jelly
-{
-private:
-    int N = 20;
-    float radius = 30.f;
-    sf::Vector2f center{200.f, 300.f};
-    void update_verlet(float dt, sf::Vector2f acceleration = {0, 0});
-
-public:
-    Jelly();
-    ~Jelly();
-
-    std::vector<Point> points;
-    std::vector<Spring> springs;
-    int iterations = 25; // Increased for human figure stability
-    // global stiffness multiplier for constraint correction (0..1)
-    float stiffness = 0.8f; // Stronger for human figures
-    // separate multipliers
-    float stiffness_ring = 0.6f;   // peripheral-peripheral springs
-    float stiffness_spoke = 0.65f; // center-peripheral springs
-    // Spring hierarchy for proper body mechanics
-    float stiffness_bone = 0.95f; // Skeleton/bone springs (very rigid)
-    float stiffness_joint = 0.8f; // Major joints (rigid but flexible)
-    float stiffness_flesh = 0.3f; // Soft tissue (flexible)
-    // internal pressure (0 = off). Positive -> expansion force
-    float pressure = 0.5f; // Reduced to avoid conflict with grounding
-    // damping multiplier applied to velocity (0..1, closer to 1 more bouncy)
-    float damping = 0.96f; // Slightly more damping for stability
-    // target area for pressure preservation
-    float targetArea = 0.f;
-    void update(float dt);
-    void apply_force(const sf::Vector2f &F_total);
-    void apply_force(const sf::Vector2f &F_total, const sf::Vector2f &at, float radius);
-    void apply_force(const sf::Vector2f &J_total, const sf::Vector2f &at, float radius, float dt);
-    void draw(sf::RenderWindow &window);
-
-    void add_point(const sf::Vector2f &pos, BODY_PART body_part)
+    // Heavy skeletal structure for stability
+    if (body_part == BODY_PART::PELVIS || body_part == BODY_PART::SPINE_LOW ||
+        body_part == BODY_PART::SPINE_MID || body_part == BODY_PART::SPINE_UP ||
+        body_part == BODY_PART::HEAD)
     {
-        // Game-physics based mass distribution for proper balance
-        float mass = 1.0f; // default
-
-        // Heavy skeletal structure for stability
-        if (body_part == BODY_PART::PELVIS || body_part == BODY_PART::SPINE_LOW ||
-            body_part == BODY_PART::SPINE_MID || body_part == BODY_PART::SPINE_UP ||
-            body_part == BODY_PART::HEAD)
-        {
-            mass = 5.0f; // Heavy core/spine
-        }
-        // Very heavy feet for grounding
-        else if (body_part == BODY_PART::FOOT_L || body_part == BODY_PART::FOOT_R ||
-                 body_part == BODY_PART::ANKLE_L || body_part == BODY_PART::ANKLE_R)
-        {
-            mass = 8.0f; // Very heavy feet for ground contact
-        }
-        // Medium weight limbs
-        else if (body_part == BODY_PART::HIP_L || body_part == BODY_PART::HIP_R ||
-                 body_part == BODY_PART::KNEE_L || body_part == BODY_PART::KNEE_R ||
-                 body_part == BODY_PART::SHO_L || body_part == BODY_PART::SHO_R ||
-                 body_part == BODY_PART::ELB_L || body_part == BODY_PART::ELB_R ||
-                 body_part == BODY_PART::WRIST_L || body_part == BODY_PART::WRIST_R)
-        {
-            mass = 2.0f; // Medium limb joints
-        }
-        // Light flesh/tissue
-        else if (body_part == BODY_PART::NONE)
-        {
-            mass = 0.5f; // Light soft tissue
-        }
-
-        points.push_back({pos, pos, {0.f, 0.f}, false, mass, body_part, id});
-        part_index[body_part] = points.size() - 1;
+        mass = 5.0f; // Heavy core/spine
+    }
+    // Very heavy feet for grounding
+    else if (body_part == BODY_PART::FOOT_L || body_part == BODY_PART::FOOT_R ||
+             body_part == BODY_PART::ANKLE_L || body_part == BODY_PART::ANKLE_R)
+    {
+        mass = 8.0f; // Very heavy feet for ground contact
+    }
+    // Medium weight limbs
+    else if (body_part == BODY_PART::HIP_L || body_part == BODY_PART::HIP_R ||
+             body_part == BODY_PART::KNEE_L || body_part == BODY_PART::KNEE_R ||
+             body_part == BODY_PART::SHO_L || body_part == BODY_PART::SHO_R ||
+             body_part == BODY_PART::ELB_L || body_part == BODY_PART::ELB_R ||
+             body_part == BODY_PART::WRIST_L || body_part == BODY_PART::WRIST_R)
+    {
+        mass = 2.0f; // Medium limb joints
+    }
+    // Light flesh/tissue
+    else if (body_part == BODY_PART::NONE)
+    {
+        mass = 0.5f; // Light soft tissue
     }
 
-    void add_edge(BODY_PART a, BODY_PART b)
-    {
-        if (part_index.find(a) == part_index.end() || part_index.find(b) == part_index.end())
-            return;
-        int ia = part_index[a];
-        int ib = part_index[b];
-        if (ia == ib)
-            return;
-        sf::Vector2f d = points[ib].pos - points[ia].pos;
-        float dist = std::sqrt(d.x * d.x + d.y * d.y);
-        if (dist < 1e-3f)
-            dist = 1e-3f;
+    points.push_back({pos, pos, {0.f, 0.f}, false, mass, body_part, id});
+    part_index[body_part] = points.size() - 1;
+}
 
-        // Use default skeleton stiffness - hierarchy is handled elsewhere
-        springs.push_back({ia, ib, dist, skeletonStiffness, true, id});
-    }
+void Jelly::add_edge(BODY_PART a, BODY_PART b)
+{
+    if (part_index.find(a) == part_index.end() || part_index.find(b) == part_index.end())
+        return;
+    int ia = part_index[a];
+    int ib = part_index[b];
+    if (ia == ib)
+        return;
+    sf::Vector2f d = points[ib].pos - points[ia].pos;
+    float dist = std::sqrt(d.x * d.x + d.y * d.y);
+    if (dist < 1e-3f)
+        dist = 1e-3f;
 
-    // shape creation helpers
-    void clear();
-    void create_circle(int n, float r, sf::Vector2f c);
-    void create_from_points(const std::vector<sf::Vector2f> &pts);
-    void create_from_points(const std::vector<std::pair<sf::Vector2f, BODY_PART>> &pts);
-    // create from points but resample edges to have approximately target peripheral points
-    void create_from_points_resampled(const std::vector<std::pair<sf::Vector2f, BODY_PART>> &pts, int targetPerimeterPoints, uint64_t id);
-    // create a filled soft-body by sampling the interior of a polygon with a triangular lattice
-    // polygon: ordered peripheral points
-    // spacing: approximate distance between interior lattice points (pixels)
-    void create_filled_from_polygon(const std::vector<sf::Vector2f> &pts, float spacing = 12.f);
-    // overload: accept perimeter points paired with BODY_PART tags and an owner id
-    void create_filled_from_polygon(const std::vector<std::pair<sf::Vector2f, BODY_PART>> &pts, float spacing, uint64_t id);
-    // add skeleton springs for a given player id by wiring BODY_PART tagged perimeter points
-    void add_skeleton_for_player(uint64_t id, float skeletonStiffness = 1.5f);
-    // connect interior/flesh points to nearest skeleton joints for soft attachment
-    void connect_flesh_to_skeleton(uint64_t owner_id, float fleshToSkeletonStiffness = 0.4f, int k = 2, float maxDistance = 60.f);
-    // apply postural stability forces to maintain upright stance
-    void apply_postural_stability(uint64_t owner_id, float dt, float ground_y = 400.f);
-    // control helpers for body parts
-    int find_part_index(uint64_t owner_id, BODY_PART part) const;
-    void apply_impulse_to_part(uint64_t owner_id, BODY_PART part, const sf::Vector2f &impulse);
-    void set_part_target(uint64_t owner_id, BODY_PART part, const sf::Vector2f &targetPos, float kp = 150.f, float kd = 10.f);
-    void clear_part_target(uint64_t owner_id, BODY_PART part);
-    void animate_skeleton_spring(uint64_t owner_id, BODY_PART a, BODY_PART b, float newRest, float lerp = 1.f);
+    // Use default skeleton stiffness - hierarchy is handled elsewhere
+    springs.push_back({ia, ib, dist, skeletonStiffness, true, id});
+}
 
-    // target store for PD controllers
-    struct PartTarget
-    {
-        uint64_t owner = 0;
-        BODY_PART part = BODY_PART::NONE;
-        sf::Vector2f target{0.f, 0.f};
-        float kp = 0.f;
-        float kd = 0.f;
-        bool active = false;
-    };
-    std::vector<PartTarget> partTargets;
-
-    // per-jelly owner id (used when tagging points/springs for players)
-    uint64_t id = 0;
-    // default stiffness for skeleton edges added by add_edge
-    float skeletonStiffness = 1.5f;
-    // map BODY_PART -> point index for helper wiring
-    std::unordered_map<BODY_PART, int> part_index;
-
-    float get_radius() const { return radius; }
-
-    Jelly(int n, float r, sf::Vector2f c);
-};
-
-// default delegates to param constructor
+// Default constructor delegates to param constructor
 Jelly::Jelly() : Jelly(20, 30.f, {200.f, 300.f}) {}
 
 Jelly::~Jelly() {}
@@ -285,10 +152,7 @@ void Jelly::animate_skeleton_spring(uint64_t owner_id, BODY_PART a, BODY_PART b,
             continue;
         if ((s.p1 == ia && s.p2 == ib) || (s.p1 == ib && s.p2 == ia))
         {
-            if (lerp >= 1.f)
-                s.rest_length = newRest;
-            else
-                s.rest_length = s.rest_length * (1.f - lerp) + newRest * lerp;
+            s.rest_length += (newRest - s.rest_length) * lerp;
             return;
         }
     }
@@ -436,7 +300,8 @@ void Jelly::create_from_points_resampled(const std::vector<std::pair<sf::Vector2
         for (int k = 0; k < count; ++k)
         {
             float t = float(k) / float(count);
-            res.push_back(pts[i].first + (pts[j].first - pts[i].first) * t);
+            sf::Vector2f interpolated = pts[i].first + t * (pts[j].first - pts[i].first);
+            res.push_back(interpolated);
         }
     }
 
@@ -553,17 +418,19 @@ void Jelly::create_filled_from_polygon(const std::vector<sf::Vector2f> &pts, flo
         for (int cidx = 0; cidx < cols; ++cidx)
         {
             float x = origin_x + cidx * dx + xoff;
-            sf::Vector2f pos{x, y};
-            if (!point_in_polygon(pos, pts))
-                continue;
-            Point p;
-            p.pos = pos;
-            p.prev_pos = pos;
-            p.mass = 1.f;
-            p.locked = false;
-            int idx = (int)points.size();
-            points.push_back(p);
-            grid[r][cidx] = idx;
+            sf::Vector2f candidate{x, y};
+            if (point_in_polygon(candidate, pts))
+            {
+                Point newPt;
+                newPt.pos = candidate;
+                newPt.prev_pos = candidate;
+                newPt.mass = 1.f;
+                newPt.locked = false;
+                newPt.body_part = BODY_PART::NONE;
+                newPt.id = 0;
+                points.push_back(newPt);
+                grid[r][cidx] = (int)points.size() - 1;
+            }
         }
     }
 
@@ -572,43 +439,32 @@ void Jelly::create_filled_from_polygon(const std::vector<sf::Vector2f> &pts, flo
     {
         for (int cidx = 0; cidx < cols; ++cidx)
         {
-            int idx = grid[r][cidx];
-            if (idx == -1)
+            int current = grid[r][cidx];
+            if (current == -1)
                 continue;
-            // neighbor offsets: right, down-right, down-left
-            const int offs[3][2] = {{0, 1}, {1, (r % 2) ? 1 : 0}, {1, (r % 2) ? 0 : -1}};
-            // simple explicit neighbors covering the triangular connectivity
-            // right neighbor
-            if (cidx + 1 < cols)
+
+            // connect to right neighbor
+            if (cidx + 1 < cols && grid[r][cidx + 1] != -1)
             {
-                int j = grid[r][cidx + 1];
-                if (j != -1)
-                {
-                    sf::Vector2f d = points[j].pos - points[idx].pos;
-                    springs.push_back({idx, j, std::sqrt(d.x * d.x + d.y * d.y), stiffness_ring, false, 0});
-                }
+                int neighbor = grid[r][cidx + 1];
+                sf::Vector2f delta = points[neighbor].pos - points[current].pos;
+                float dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+                springs.push_back({current, neighbor, dist, stiffness_flesh, false, 0});
             }
-            // down-right / up-right depending on row parity
+
+            // connect to lower neighbors (triangular pattern)
             if (r + 1 < rows)
             {
-                int cj = cidx + (r % 2 ? 0 : 1);
-                if (cj >= 0 && cj < cols)
+                int offset = (r % 2) ? -1 : 0;
+                for (int dc = offset; dc <= offset + 1; ++dc)
                 {
-                    int j = grid[r + 1][cj];
-                    if (j != -1)
+                    int nc = cidx + dc;
+                    if (nc >= 0 && nc < cols && grid[r + 1][nc] != -1)
                     {
-                        sf::Vector2f d = points[j].pos - points[idx].pos;
-                        springs.push_back({idx, j, std::sqrt(d.x * d.x + d.y * d.y), stiffness_ring, false, 0});
-                    }
-                }
-                int cj2 = cidx + (r % 2 ? 1 : 0);
-                if (cj2 >= 0 && cj2 < cols)
-                {
-                    int j2 = grid[r + 1][cj2];
-                    if (j2 != -1)
-                    {
-                        sf::Vector2f d = points[j2].pos - points[idx].pos;
-                        springs.push_back({idx, j2, std::sqrt(d.x * d.x + d.y * d.y), stiffness_ring, false, 0});
+                        int neighbor = grid[r + 1][nc];
+                        sf::Vector2f delta = points[neighbor].pos - points[current].pos;
+                        float dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+                        springs.push_back({current, neighbor, dist, stiffness_flesh, false, 0});
                     }
                 }
             }
@@ -620,10 +476,11 @@ void Jelly::create_filled_from_polygon(const std::vector<sf::Vector2f> &pts, flo
     {
         for (size_t qi = Nperim + 1; qi < points.size(); ++qi)
         {
-            float d = std::hypot(points[qi].pos.x - points[pi].pos.x, points[qi].pos.y - points[pi].pos.y);
-            if (d <= spacing * 1.5f)
+            sf::Vector2f delta = points[qi].pos - points[pi].pos;
+            float dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+            if (dist < spacing * 1.5f)
             {
-                springs.push_back({pi, (int)qi, d, stiffness_ring, false, 0});
+                springs.push_back({pi, (int)qi, dist, stiffness_flesh, false, 0});
             }
         }
     }
@@ -648,8 +505,8 @@ void Jelly::create_filled_from_polygon(const std::vector<std::pair<sf::Vector2f,
         // tag nothing else
         for (auto &pt : points)
         {
-            pt.body_part = BODY_PART::NONE;
             pt.id = id;
+            pt.body_part = BODY_PART::NONE;
         }
         return;
     }
@@ -675,7 +532,8 @@ void Jelly::create_filled_from_polygon(const std::vector<std::pair<sf::Vector2f,
         BODY_PART bestPart = BODY_PART::NONE;
         for (auto &pp : pts)
         {
-            float d = std::hypot(points[i].pos.x - pp.first.x, points[i].pos.y - pp.first.y);
+            sf::Vector2f diff = pp.first - points[i].pos;
+            float d = std::sqrt(diff.x * diff.x + diff.y * diff.y);
             if (d < bestd)
             {
                 bestd = d;
@@ -725,21 +583,21 @@ void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
         float currentArea = compute_area(points, N);
         if (currentArea > 1e-6f)
         {
-            float areaRatio = currentArea / targetArea;
-            // pressureFactor: positive if current < target (pull outward)
-            float pressureFactor = (1.f - areaRatio) * pressure;
+            float areaError = targetArea - currentArea;
+            float pressureForce = areaError * pressure;
+            // distribute radially from center
+            sf::Vector2f centroid{0.f, 0.f};
+            for (int i = 1; i <= N; ++i)
+                centroid += points[i].pos;
+            centroid /= float(N);
             for (int i = 1; i <= N; ++i)
             {
-                Point &p = points[i];
-                if (p.locked)
-                    continue;
-                sf::Vector2f dir = p.pos - points[0].pos;
-                float len = std::sqrt(dir.x * dir.x + dir.y * dir.y);
+                sf::Vector2f radial = points[i].pos - centroid;
+                float len = std::sqrt(radial.x * radial.x + radial.y * radial.y);
                 if (len > 1e-6f)
                 {
-                    dir /= len;
-                    // scale pressure modestly
-                    p.acc += dir * (pressureFactor * 500.f);
+                    radial /= len;
+                    points[i].acc += radial * pressureForce / points[i].mass;
                 }
             }
         }
@@ -769,42 +627,37 @@ void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
 
             sf::Vector2f delta = p2.pos - p1.pos;
             float dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
-            if (dist < 1e-3f) // Prevent division by zero
+            if (dist < 1e-6f)
                 continue;
 
-            // Calculate constraint violation
-            float error = (dist - s.rest_length) / dist;
+            float error = dist - s.rest_length;
+            sf::Vector2f correction = (delta / dist) * error * 0.5f;
 
-            // Determine correction strength
-            float correctionFactor = s.stiffness * stiffness;
-
-            // Stronger correction for skeleton springs
+            // Apply hierarchy-based stiffness
+            float effectiveStiffness = stiffness * s.stiffness;
             if (s.is_skeleton)
             {
-                correctionFactor *= 1.5f;
+                effectiveStiffness *= stiffness_bone; // Skeleton springs are very rigid
+            }
+            else
+            {
+                // Regular springs use ring/spoke stiffness
+                effectiveStiffness *= (s.p1 == 0 || s.p2 == 0) ? stiffness_spoke : stiffness_ring;
             }
 
-            // Limit correction to prevent instability
-            correctionFactor = std::min(correctionFactor, 1.0f);
+            correction *= effectiveStiffness;
 
-            // Calculate position correction
-            sf::Vector2f correction = delta * error * correctionFactor;
-
-            // Apply corrections based on mass ratio (heavier points move less)
-            float mass1 = std::max(p1.mass, 0.1f); // Prevent tiny masses
-            float mass2 = std::max(p2.mass, 0.1f);
-            float totalMass = mass1 + mass2;
-
-            float ratio1 = mass2 / totalMass; // Point 1 gets mass2's influence
-            float ratio2 = mass1 / totalMass; // Point 2 gets mass1's influence
-
-            if (!p1.locked)
+            // Apply mass-weighted corrections
+            float totalMass = p1.mass + p2.mass;
+            if (totalMass > 1e-6f)
             {
-                p1.pos += correction * ratio1;
-            }
-            if (!p2.locked)
-            {
-                p2.pos -= correction * ratio2;
+                float mass1_ratio = p2.mass / totalMass;
+                float mass2_ratio = p1.mass / totalMass;
+
+                if (!p1.locked)
+                    p1.pos += correction * mass1_ratio;
+                if (!p2.locked)
+                    p2.pos -= correction * mass2_ratio;
             }
         }
     }
@@ -985,26 +838,17 @@ void Jelly::add_skeleton_for_player(uint64_t id, float skeletonStiffness)
     // Search all points (not just perimeter) for canonical joints
     for (size_t i = 0; i < points.size(); ++i)
     {
-        if (points[i].id != id)
-            continue;
-        BODY_PART bp = points[i].body_part;
-        if (bp == BODY_PART::NONE)
-            continue;
-
-        // Only map canonical skeleton joints
-        bool isCanonical = false;
-        for (BODY_PART canonical : canonicalJoints)
+        if (points[i].id == id && points[i].body_part != BODY_PART::NONE)
         {
-            if (bp == canonical)
+            // Check if this is a canonical joint
+            for (BODY_PART canonical : canonicalJoints)
             {
-                isCanonical = true;
-                break;
+                if (points[i].body_part == canonical)
+                {
+                    part_index[canonical] = (int)i;
+                    break;
+                }
             }
-        }
-
-        if (isCanonical && part_index.find(bp) == part_index.end())
-        {
-            part_index[bp] = (int)i;
         }
     }
 
@@ -1019,9 +863,8 @@ void Jelly::add_skeleton_for_player(uint64_t id, float skeletonStiffness)
             return;
         sf::Vector2f d = points[ib].pos - points[ia].pos;
         float dist = std::sqrt(d.x * d.x + d.y * d.y);
-        // avoid zero-length
         if (dist < 1e-3f)
-            dist = 1e-3f;
+            return;
         springs.push_back({ia, ib, dist, skeletonStiffness, true, id});
     };
 
@@ -1082,19 +925,15 @@ void Jelly::connect_flesh_to_skeleton(uint64_t owner_id, float fleshToSkeletonSt
     // for each interior/flesh point, connect to k nearest skeleton joints
     for (size_t i = 0; i < points.size(); ++i)
     {
-        // skip if not owned by this player or if it's already a skeleton joint
-        if (points[i].id != owner_id)
-            continue;
-        if (i > 0 && i <= (size_t)N && points[i].body_part != BODY_PART::NONE)
-            continue; // skip perimeter skeleton points
+        if (points[i].id != owner_id || points[i].body_part != BODY_PART::NONE)
+            continue; // skip non-flesh or wrong owner
 
-        // find k nearest skeleton joints within maxDistance
+        // find k nearest skeleton joints
         std::vector<std::pair<float, int>> distances;
         for (int skel_idx : skeleton_indices)
         {
-            float dx = points[skel_idx].pos.x - points[i].pos.x;
-            float dy = points[skel_idx].pos.y - points[i].pos.y;
-            float dist = std::sqrt(dx * dx + dy * dy);
+            sf::Vector2f diff = points[skel_idx].pos - points[i].pos;
+            float dist = std::sqrt(diff.x * diff.x + diff.y * diff.y);
             if (dist <= maxDistance)
             {
                 distances.push_back({dist, skel_idx});
@@ -1107,28 +946,9 @@ void Jelly::connect_flesh_to_skeleton(uint64_t owner_id, float fleshToSkeletonSt
 
         for (int j = 0; j < connections; ++j)
         {
-            float dist = distances[j].first;
             int skel_idx = distances[j].second;
-
-            // ensure minimum rest length
-            if (dist < 1e-3f)
-                dist = 1e-3f;
-
-            // check for duplicate spring
-            bool duplicate = false;
-            for (const auto &s : springs)
-            {
-                if ((s.p1 == (int)i && s.p2 == skel_idx) || (s.p1 == skel_idx && s.p2 == (int)i))
-                {
-                    duplicate = true;
-                    break;
-                }
-            }
-
-            if (!duplicate)
-            {
-                springs.push_back({(int)i, skel_idx, dist, fleshToSkeletonStiffness, false, owner_id});
-            }
+            float dist = distances[j].first;
+            springs.push_back({(int)i, skel_idx, dist, fleshToSkeletonStiffness, false, owner_id});
         }
     }
 }
@@ -1154,31 +974,18 @@ void Jelly::apply_postural_stability(uint64_t owner_id, float dt, float ground_y
     // 1. FOOT PLANTING: Lock feet when grounded (critical for stability)
     auto plantFoot = [&](BODY_PART footPart)
     {
-        auto it = part_indices.find(footPart);
-        if (it == part_indices.end())
+        if (part_indices.find(footPart) == part_indices.end())
             return;
+        int idx = part_indices[footPart];
+        Point &foot = points[idx];
 
-        Point &foot = points[it->second];
-        float distToGround = ground_y - foot.pos.y;
-
-        if (distToGround < 15.f && distToGround > -2.f) // Grounded
+        // Check if foot is near ground
+        if (foot.pos.y >= ground_y - 5.0f)
         {
-            // STRONG foot planting - this is crucial for standing
-            foot.mass = 12.0f; // Very heavy when grounded
-
-            // Active downward force to "stick" to ground
-            foot.acc.y += 300.f;
-
-            // Reduce horizontal drift significantly (like real foot plant)
-            sf::Vector2f vel = foot.pos - foot.prev_pos;
-            if (std::abs(vel.x) < 30.f) // Static friction range
-            {
-                foot.prev_pos.x = foot.pos.x - vel.x * 0.1f; // Almost lock horizontal
-            }
-        }
-        else
-        {
-            foot.mass = std::max(foot.mass * 0.9f, 2.0f); // Reduce when airborne
+            foot.pos.y = ground_y;      // Snap to ground
+            foot.prev_pos.y = ground_y; // Stop vertical movement
+            // Add some horizontal friction
+            foot.prev_pos.x = foot.pos.x + (foot.prev_pos.x - foot.pos.x) * 0.8f;
         }
     };
 
@@ -1188,44 +995,33 @@ void Jelly::apply_postural_stability(uint64_t owner_id, float dt, float ground_y
     // 2. SPINE RIGIDITY: Keep spine straight and vertical (like real skeleton)
     auto rigidSpine = [&]()
     {
-        auto pelvis_it = part_indices.find(BODY_PART::PELVIS);
-        auto spine_low_it = part_indices.find(BODY_PART::SPINE_LOW);
-        auto spine_mid_it = part_indices.find(BODY_PART::SPINE_MID);
-        auto spine_up_it = part_indices.find(BODY_PART::SPINE_UP);
-        auto head_it = part_indices.find(BODY_PART::HEAD);
+        std::vector<BODY_PART> spineChain = {
+            BODY_PART::PELVIS, BODY_PART::SPINE_LOW, BODY_PART::SPINE_MID,
+            BODY_PART::SPINE_UP, BODY_PART::NECK, BODY_PART::HEAD};
 
-        // Apply strong vertical alignment to entire spine chain
-        std::vector<int> spineChain;
-        if (pelvis_it != part_indices.end())
-            spineChain.push_back(pelvis_it->second);
-        if (spine_low_it != part_indices.end())
-            spineChain.push_back(spine_low_it->second);
-        if (spine_mid_it != part_indices.end())
-            spineChain.push_back(spine_mid_it->second);
-        if (spine_up_it != part_indices.end())
-            spineChain.push_back(spine_up_it->second);
-        if (head_it != part_indices.end())
-            spineChain.push_back(head_it->second);
-
-        if (spineChain.size() >= 2)
+        for (size_t i = 0; i < spineChain.size() - 1; ++i)
         {
-            // Force spine segments to maintain vertical alignment
-            for (size_t i = 1; i < spineChain.size(); ++i)
+            if (part_indices.find(spineChain[i]) == part_indices.end() ||
+                part_indices.find(spineChain[i + 1]) == part_indices.end())
+                continue;
+
+            int lower_idx = part_indices[spineChain[i]];
+            int upper_idx = part_indices[spineChain[i + 1]];
+
+            Point &lower = points[lower_idx];
+            Point &upper = points[upper_idx];
+
+            // Apply upward bias to maintain vertical alignment
+            sf::Vector2f spineDir = upper.pos - lower.pos;
+            float len = std::sqrt(spineDir.x * spineDir.x + spineDir.y * spineDir.y);
+            if (len > 1e-6f)
             {
-                Point &lower = points[spineChain[i - 1]];
-                Point &upper = points[spineChain[i]];
+                spineDir /= len;
+                sf::Vector2f uprightDir{0.0f, -1.0f}; // Up direction
+                sf::Vector2f correctionForce = (uprightDir - spineDir) * 50.0f;
 
-                // Calculate target position (upper should be directly above lower)
-                sf::Vector2f idealOffset = {0.f, -40.f}; // 40 pixels up
-                sf::Vector2f currentOffset = upper.pos - lower.pos;
-                sf::Vector2f correction = idealOffset - currentOffset;
-
-                // Apply strong corrective forces
-                float strength = 250.f;
-                if (!upper.locked)
-                    upper.acc += correction * strength * dt / upper.mass;
-                if (!lower.locked)
-                    lower.acc -= correction * strength * dt * 0.5f / lower.mass;
+                upper.acc += correctionForce / upper.mass;
+                lower.acc -= correctionForce / lower.mass;
             }
         }
     };
@@ -1234,62 +1030,48 @@ void Jelly::apply_postural_stability(uint64_t owner_id, float dt, float ground_y
     // 3. ACTIVE BALANCE CONTROLLER: Keep center of mass over base of support
     auto activeBalance = [&]()
     {
-        auto foot_l_it = part_indices.find(BODY_PART::FOOT_L);
-        auto foot_r_it = part_indices.find(BODY_PART::FOOT_R);
-        auto pelvis_it = part_indices.find(BODY_PART::PELVIS);
-
-        if (foot_l_it == part_indices.end() || foot_r_it == part_indices.end() ||
-            pelvis_it == part_indices.end())
-            return;
-
-        Point &footL = points[foot_l_it->second];
-        Point &footR = points[foot_r_it->second];
-        Point &pelvis = points[pelvis_it->second];
-
-        // Check if both feet are grounded
-        bool leftGrounded = (ground_y - footL.pos.y) < 15.f;
-        bool rightGrounded = (ground_y - footR.pos.y) < 15.f;
-
-        if (leftGrounded && rightGrounded)
+        // Find center of mass
+        sf::Vector2f com{0.0f, 0.0f};
+        float total_mass = 0.0f;
+        for (auto &p : points)
         {
-            // Calculate base of support (center between feet)
-            sf::Vector2f supportCenter = (footL.pos + footR.pos) * 0.5f;
-
-            // Calculate total center of mass
-            sf::Vector2f com = {0.f, 0.f};
-            float totalMass = 0.f;
-            for (const auto &p : points)
+            if (p.id == owner_id)
             {
-                if (p.id == owner_id)
-                {
-                    com += p.pos * p.mass;
-                    totalMass += p.mass;
-                }
+                com += p.pos * p.mass;
+                total_mass += p.mass;
             }
-            if (totalMass > 1e-6f)
-                com /= totalMass;
+        }
+        if (total_mass > 1e-6f)
+            com /= total_mass;
 
-            // Apply STRONG balance control to keep COM over base
-            float horizontalError = com.x - supportCenter.x;
+        // Find base of support (average foot position)
+        sf::Vector2f base_center{0.0f, 0.0f};
+        int foot_count = 0;
+        if (part_indices.find(BODY_PART::FOOT_L) != part_indices.end())
+        {
+            base_center += points[part_indices[BODY_PART::FOOT_L]].pos;
+            foot_count++;
+        }
+        if (part_indices.find(BODY_PART::FOOT_R) != part_indices.end())
+        {
+            base_center += points[part_indices[BODY_PART::FOOT_R]].pos;
+            foot_count++;
+        }
+        if (foot_count > 0)
+        {
+            base_center /= float(foot_count);
 
-            if (std::abs(horizontalError) > 3.f) // Very sensitive balance
+            // Apply corrective force to pelvis to shift COM over base
+            if (part_indices.find(BODY_PART::PELVIS) != part_indices.end())
             {
-                // Apply counter-torque through pelvis (like real human balance)
-                sf::Vector2f balanceForce = {-horizontalError * 400.f, 0.f};
-                pelvis.acc += balanceForce / pelvis.mass;
+                int pelvis_idx = part_indices[BODY_PART::PELVIS];
+                Point &pelvis = points[pelvis_idx];
 
-                // Also bias upper body to counter-balance
-                auto applyCounterBalance = [&](BODY_PART part, float weight)
-                {
-                    auto it = part_indices.find(part);
-                    if (it != part_indices.end() && !points[it->second].locked)
-                    {
-                        points[it->second].acc += balanceForce * weight / points[it->second].mass;
-                    }
-                };
+                sf::Vector2f com_error = base_center - com;
+                com_error.y = 0.0f; // Only horizontal correction
+                sf::Vector2f balance_force = com_error * 30.0f;
 
-                applyCounterBalance(BODY_PART::SPINE_UP, 0.6f);
-                applyCounterBalance(BODY_PART::HEAD, 0.4f);
+                pelvis.acc += balance_force / pelvis.mass;
             }
         }
     };
@@ -1298,30 +1080,20 @@ void Jelly::apply_postural_stability(uint64_t owner_id, float dt, float ground_y
     // 4. HIP HEIGHT MAINTENANCE: Keep pelvis at proper height above feet
     auto maintainHipHeight = [&]()
     {
-        auto pelvis_it = part_indices.find(BODY_PART::PELVIS);
-        auto foot_l_it = part_indices.find(BODY_PART::FOOT_L);
-        auto foot_r_it = part_indices.find(BODY_PART::FOOT_R);
-
-        if (pelvis_it == part_indices.end() || foot_l_it == part_indices.end() ||
-            foot_r_it == part_indices.end())
+        if (part_indices.find(BODY_PART::PELVIS) == part_indices.end())
             return;
 
-        Point &pelvis = points[pelvis_it->second];
-        Point &footL = points[foot_l_it->second];
-        Point &footR = points[foot_r_it->second];
+        int pelvis_idx = part_indices[BODY_PART::PELVIS];
+        Point &pelvis = points[pelvis_idx];
 
-        // Target pelvis height above feet
-        float avgFootY = (footL.pos.y + footR.pos.y) * 0.5f;
-        float targetPelvisY = avgFootY - 120.f; // Pelvis should be 120px above feet
-        float currentPelvisY = pelvis.pos.y;
+        // Target hip height (approximate human proportions)
+        float target_hip_height = ground_y - 90.0f;
 
-        float heightError = currentPelvisY - targetPelvisY;
-
-        if (std::abs(heightError) > 10.f)
+        if (pelvis.pos.y > target_hip_height)
         {
-            // Apply vertical correction force
-            sf::Vector2f heightForce = {0.f, -heightError * 200.f};
-            pelvis.acc += heightForce / pelvis.mass;
+            float height_error = target_hip_height - pelvis.pos.y;
+            sf::Vector2f lift_force{0.0f, height_error * 20.0f};
+            pelvis.acc += lift_force / pelvis.mass;
         }
     };
     maintainHipHeight();

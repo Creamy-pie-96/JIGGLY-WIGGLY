@@ -2,29 +2,36 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Build (Release) with SFML",
+      "label": "Build Current File with Libraries",
+      "type": "shell",
+      "command": "sh",
+      "args": [
+  "-c",
+  "FILE=\"${file}\"; WF=\"${workspaceFolder}/Jiggly Jam\"; BASENAME=\"${fileBasenameNoExtension}\"; \ncase \"$FILE\" in \n  *\"/Source_code/Tests/\"*|*\"/Tests/\"*|*\"/tests/\"*) OUT=\"$WF/build/test\"; FLAGS=\"-g\" ;; \n  *) OUT=\"$WF/build/final\"; FLAGS=\"-O2\" ;; \nesac; \nmkdir -p \"$OUT\"; cd \"$WF\"; \n# compile\ng++ -std=c++17 $FLAGS -I. \"$FILE\" Libraries/Gmae_physics/jelly.cpp Libraries/Controll_system/BodyControlSystem.cpp Libraries/Controll_system/InputManager.cpp Libraries/Player/Player.cpp -lsfml-graphics -lsfml-window -lsfml-system -o \"$OUT/$BASENAME\""
+      ],
+  "group": "build",
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Run Current Build",
+      "type": "shell",
+      "command": "sh",
+      "args": [
+  "-c",
+  "FILE=\"${file}\"; WF=\"${workspaceFolder}/Jiggly Jam\"; BASENAME=\"${fileBasenameNoExtension}\"; \ncase \"$FILE\" in \n  *\"/Source_code/Tests/\"*|*\"/Tests/\"*|*\"/tests/\"*) OUT=\"$WF/build/test\" ;; \n  *) OUT=\"$WF/build/final\" ;; \nesac; \nexec \"$OUT/$BASENAME\""
+      ],
+      "group": "build"
+    },
+    {
+      "label": "Build All Libraries (single command)",
       "type": "shell",
       "command": "sh",
       "args": [
         "-c",
-        "g++ -O2 -std=c++17 \"${file}\" -o \"${fileDirname}/${fileBasenameNoExtension}\" $(pkg-config --cflags --libs sfml-graphics sfml-window sfml-system)"
+        "cd \"${workspaceFolder}/Jiggly Jam\" && mkdir -p build/final build/test && g++ -std=c++17 -O2 -I. Source_code/main.cpp Libraries/Gmae_physics/jelly.cpp Libraries/Controll_system/BodyControlSystem.cpp Libraries/Controll_system/InputManager.cpp Libraries/Player/Player.cpp -lsfml-graphics -lsfml-window -lsfml-system -o build/final/app"
       ],
-      "problemMatcher": ["$gcc"],
-      "group": "build"
-    },
-    {
-      "label": "Run Application",
-      "type": "shell",
-      "command": "sh",
-      "args": ["-c", "exec \"${fileDirname}/${fileBasenameNoExtension}\""],
-      "group": "build"
-    },
-    {
-      "label": "Run Demo (fixed)",
-      "type": "shell",
-      "command": "sh",
-      "args": ["-c", "exec \"${workspaceFolder}/Jiggly Jam/demo_jelly\""],
-      "group": "build"
+      "group": "build",
+      "problemMatcher": ["$gcc"]
     }
   ]
 }

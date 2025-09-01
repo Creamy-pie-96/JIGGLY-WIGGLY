@@ -1,10 +1,5 @@
-#include "libs.hpp"
-#include "Player.hpp"
-
-// Include implementation directly for a single-translation-unit test build.
-// This avoids multiple-definition linker errors because `jelly.hpp` contains
-// function implementations and this test compiles everything into one object.
-#include "Player.cpp"
+#include "../../Libraries/libs.hpp"
+#include "../../Libraries/Player/Player.hpp"
 
 int main()
 {

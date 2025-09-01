@@ -2,11 +2,11 @@
 #include <vector>
 #include <map>
 #include <cmath>
-#include "jelly.hpp"
+#include "../../Libraries/Gmae_physics/jelly.hpp"
 
 // This helper function builds the human figure by adding points and springs to the Jelly object.
 // We are passing in a reference to the Jelly object, so we are modifying the object directly.
-void createHumanFigure(Jelly& figure, const sf::Vector2f& origin, const float& height)
+void createHumanFigure(Jelly &figure, const sf::Vector2f &origin, const float &height)
 {
     float s = height / 175.0f; // Scale factor based on a standard height
 
@@ -49,7 +49,7 @@ void createHumanFigure(Jelly& figure, const sf::Vector2f& origin, const float& h
 }
 
 // Function to draw the jelly figure with thick lines and a head
-void drawJellyFigure(sf::RenderWindow& window, const Jelly& figure)
+void drawJellyFigure(sf::RenderWindow &window, const Jelly &figure)
 {
     // Draw the torso as a filled rectangle
     sf::RectangleShape torso({10.f, 60.f});
@@ -60,7 +60,7 @@ void drawJellyFigure(sf::RenderWindow& window, const Jelly& figure)
     window.draw(torso);
 
     // Draw limbs and head as thick lines or rectangles
-    for (const auto& s : figure.springs)
+    for (const auto &s : figure.springs)
     {
         sf::Vector2f p1 = figure.points[s.p1].pos;
         sf::Vector2f p2 = figure.points[s.p2].pos;
@@ -92,7 +92,7 @@ int main()
 
     Jelly myHumanFigure;
     createHumanFigure(myHumanFigure, sf::Vector2f(400.f, 300.f), 175.f);
-    
+
     // Lock the feet to the ground so the figure doesn't fall
     myHumanFigure.points[myHumanFigure.part_index.at(BODY_PART::FOOT_R)].locked = true;
     myHumanFigure.points[myHumanFigure.part_index.at(BODY_PART::FOOT_L)].locked = true;
@@ -110,7 +110,7 @@ int main()
         {
             if (event.type == sf::Event::Closed)
                 window.close();
-            
+
             // Handle jump input (Spacebar press)
             if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Space)
             {
@@ -127,12 +127,12 @@ int main()
         // Apply a downward force (gravity)
         myHumanFigure.apply_force({0.f, 9.8f * 10.f});
 
-        // Update the figure's physics  
+        // Update the figure's physics
         myHumanFigure.update(dt.asSeconds());
 
         // Check for ground collision and reset `onGround` flag
         onGround = false;
-        for (auto& p : myHumanFigure.points)
+        for (auto &p : myHumanFigure.points)
         {
             if (p.pos.y >= groundLevel)
             {

@@ -1,6 +1,6 @@
 #include "Player.hpp"
 #include <algorithm>
-#include "jelly.hpp"
+#include "../Gmae_physics/jelly.hpp"
 
 class Human
 {
