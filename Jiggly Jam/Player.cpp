@@ -11,6 +11,195 @@ private:
     sf::Vector2f origin{100.f, 100.f};
     float height;
 
+    // Shape-based human figure (like in human.cpp)
+    sf::RectangleShape torso;
+    sf::RectangleShape neck;
+    sf::CircleShape head;
+    sf::RectangleShape rightArm;
+    sf::RectangleShape leftArm;
+    sf::RectangleShape rightHand;
+    sf::RectangleShape leftHand;
+    sf::RectangleShape rightLeg;
+    sf::RectangleShape leftLeg;
+    sf::RectangleShape rightFoot;
+    sf::RectangleShape leftFoot;
+
+    // Helper function to sample points around a circle
+    std::vector<sf::Vector2f> sampleCircle(const sf::CircleShape &circle, int numPoints) const
+    {
+        std::vector<sf::Vector2f> points;
+        sf::Vector2f center = circle.getPosition() + sf::Vector2f(circle.getRadius(), circle.getRadius());
+        float radius = circle.getRadius();
+
+        for (int i = 0; i < numPoints; ++i)
+        {
+            float angle = (float)i / (float)numPoints * 2.f * M_PI;
+            sf::Vector2f point = center + sf::Vector2f(std::cos(angle), std::sin(angle)) * radius;
+            points.push_back(point);
+        }
+        return points;
+    }
+
+    // Helper function to sample points around a rectangle
+    std::vector<sf::Vector2f> sampleRectangle(const sf::RectangleShape &rect, int pointsPerSide) const
+    {
+        std::vector<sf::Vector2f> points;
+        sf::Vector2f pos = rect.getPosition();
+        sf::Vector2f size = rect.getSize();
+        sf::Vector2f origin = rect.getOrigin();
+        float rotation = rect.getRotation() * M_PI / 180.f;
+
+        // Calculate the four corners relative to origin
+        std::vector<sf::Vector2f> corners = {
+            {-origin.x, -origin.y},                 // Top-left
+            {size.x - origin.x, -origin.y},         // Top-right
+            {size.x - origin.x, size.y - origin.y}, // Bottom-right
+            {-origin.x, size.y - origin.y}          // Bottom-left
+        };
+
+        // Apply rotation and translation
+        for (auto &corner : corners)
+        {
+            float x = corner.x * std::cos(rotation) - corner.y * std::sin(rotation);
+            float y = corner.x * std::sin(rotation) + corner.y * std::cos(rotation);
+            corner = sf::Vector2f(x + pos.x, y + pos.y);
+        }
+
+        // Sample points along each edge
+        for (int edge = 0; edge < 4; ++edge)
+        {
+            sf::Vector2f start = corners[edge];
+            sf::Vector2f end = corners[(edge + 1) % 4];
+
+            for (int i = 0; i < pointsPerSide; ++i)
+            {
+                float t = (float)i / (float)pointsPerSide;
+                sf::Vector2f point = start + (end - start) * t;
+                points.push_back(point);
+            }
+        }
+        return points;
+    }
+
+    // Helper function to determine which body part a point belongs to
+    BODY_PART classifyPoint(const sf::Vector2f &point) const
+    {
+        // Check distance to canonical joint positions
+        struct JointInfo
+        {
+            sf::Vector2f pos;
+            BODY_PART part;
+            float radius;
+        };
+
+        std::vector<JointInfo> joints = {
+            {head.getPosition() + sf::Vector2f(head.getRadius(), head.getRadius()), BODY_PART::HEAD, head.getRadius() * 0.8f},
+            {neck.getPosition() + neck.getSize() * 0.5f, BODY_PART::NECK, 10.f * s},
+            {sf::Vector2f(neck.getPosition().x + neck.getSize().x * 0.8f, neck.getPosition().y + neck.getSize().y), BODY_PART::CLAV_R, 8.f * s},
+            {sf::Vector2f(neck.getPosition().x + neck.getSize().x * 0.2f, neck.getPosition().y + neck.getSize().y), BODY_PART::CLAV_L, 8.f * s},
+            {rightArm.getPosition(), BODY_PART::SHO_R, 12.f * s},
+            {leftArm.getPosition(), BODY_PART::SHO_L, 12.f * s},
+            {sf::Vector2f(rightArm.getPosition().x, rightArm.getPosition().y + rightArm.getSize().y * 0.6f), BODY_PART::ELB_R, 10.f * s},
+            {sf::Vector2f(leftArm.getPosition().x, leftArm.getPosition().y + leftArm.getSize().y * 0.6f), BODY_PART::ELB_L, 10.f * s},
+            {sf::Vector2f(rightArm.getPosition().x, rightArm.getPosition().y + rightArm.getSize().y * 0.9f), BODY_PART::WRIST_R, 8.f * s},
+            {sf::Vector2f(leftArm.getPosition().x, leftArm.getPosition().y + leftArm.getSize().y * 0.9f), BODY_PART::WRIST_L, 8.f * s},
+            {rightHand.getPosition() + rightHand.getSize() * 0.5f, BODY_PART::HAND_R, 12.f * s},
+            {leftHand.getPosition() + leftHand.getSize() * 0.5f, BODY_PART::HAND_L, 12.f * s},
+            {rightLeg.getPosition(), BODY_PART::HIP_R, 12.f * s},
+            {leftLeg.getPosition(), BODY_PART::HIP_L, 12.f * s},
+            {sf::Vector2f(rightLeg.getPosition().x, rightLeg.getPosition().y + rightLeg.getSize().y * 0.6f), BODY_PART::KNEE_R, 10.f * s},
+            {sf::Vector2f(leftLeg.getPosition().x, leftLeg.getPosition().y + leftLeg.getSize().y * 0.6f), BODY_PART::KNEE_L, 10.f * s},
+            {sf::Vector2f(rightLeg.getPosition().x, rightLeg.getPosition().y + rightLeg.getSize().y * 0.9f), BODY_PART::ANKLE_R, 8.f * s},
+            {sf::Vector2f(leftLeg.getPosition().x, leftLeg.getPosition().y + leftLeg.getSize().y * 0.9f), BODY_PART::ANKLE_L, 8.f * s},
+            {rightFoot.getPosition() + rightFoot.getSize() * 0.5f, BODY_PART::FOOT_R, 12.f * s},
+            {leftFoot.getPosition() + leftFoot.getSize() * 0.5f, BODY_PART::FOOT_L, 12.f * s}};
+
+        // Find the closest joint
+        float minDist = 1e9f;
+        BODY_PART closestPart = BODY_PART::NONE;
+
+        for (const auto &joint : joints)
+        {
+            float dist = std::hypot(point.x - joint.pos.x, point.y - joint.pos.y);
+            if (dist < joint.radius && dist < minDist)
+            {
+                minDist = dist;
+                closestPart = joint.part;
+            }
+        }
+
+        return closestPart;
+    }
+
+    // Main helper function to generate outline from shape-based figure
+    void generateOutlineFromShapes()
+    {
+        std::vector<sf::Vector2f> allPoints;
+
+        // Sample points from each body part
+        auto headPoints = sampleCircle(head, 8);
+        auto neckPoints = sampleRectangle(neck, 3);
+        auto torsoPoints = sampleRectangle(torso, 6);
+        auto rightArmPoints = sampleRectangle(rightArm, 4);
+        auto leftArmPoints = sampleRectangle(leftArm, 4);
+        auto rightHandPoints = sampleRectangle(rightHand, 3);
+        auto leftHandPoints = sampleRectangle(leftHand, 3);
+        auto rightLegPoints = sampleRectangle(rightLeg, 4);
+        auto leftLegPoints = sampleRectangle(leftLeg, 4);
+        auto rightFootPoints = sampleRectangle(rightFoot, 3);
+        auto leftFootPoints = sampleRectangle(leftFoot, 3);
+
+        // Combine all points
+        allPoints.insert(allPoints.end(), headPoints.begin(), headPoints.end());
+        allPoints.insert(allPoints.end(), neckPoints.begin(), neckPoints.end());
+        allPoints.insert(allPoints.end(), torsoPoints.begin(), torsoPoints.end());
+        allPoints.insert(allPoints.end(), rightArmPoints.begin(), rightArmPoints.end());
+        allPoints.insert(allPoints.end(), leftArmPoints.begin(), leftArmPoints.end());
+        allPoints.insert(allPoints.end(), rightHandPoints.begin(), rightHandPoints.end());
+        allPoints.insert(allPoints.end(), leftHandPoints.begin(), leftHandPoints.end());
+        allPoints.insert(allPoints.end(), rightLegPoints.begin(), rightLegPoints.end());
+        allPoints.insert(allPoints.end(), leftLegPoints.begin(), leftLegPoints.end());
+        allPoints.insert(allPoints.end(), rightFootPoints.begin(), rightFootPoints.end());
+        allPoints.insert(allPoints.end(), leftFootPoints.begin(), leftFootPoints.end());
+
+        // Compute the convex hull or use a simpler approach: sort by angle from center
+        sf::Vector2f center{0.f, 0.f};
+        for (const auto &p : allPoints)
+            center += p;
+        center /= (float)allPoints.size();
+
+        // Sort points by angle around center to create a proper outline
+        std::sort(allPoints.begin(), allPoints.end(), [center](const sf::Vector2f &a, const sf::Vector2f &b)
+                  {
+            float angleA = std::atan2(a.y - center.y, a.x - center.x);
+            float angleB = std::atan2(b.y - center.y, b.x - center.x);
+            return angleA < angleB; });
+
+        // Create outline with body part classification
+        outline.clear();
+        for (const auto &point : allPoints)
+        {
+            BODY_PART part = classifyPoint(point);
+            outline.push_back({point, part});
+        }
+
+        // Generate interior skeleton joints
+        generateInteriorJoints();
+    }
+
+    void generateInteriorJoints()
+    {
+        // Calculate interior spine positions based on torso
+        sf::Vector2f torsoCenter = torso.getPosition() + torso.getSize() * 0.5f;
+        sf::Vector2f neckBottom = neck.getPosition() + sf::Vector2f(neck.getSize().x * 0.5f, neck.getSize().y);
+
+        interior_joints = {
+            {sf::Vector2f(torsoCenter.x, neckBottom.y + torso.getSize().y * 0.2f), BODY_PART::SPINE_UP},
+            {torsoCenter, BODY_PART::SPINE_MID},
+            {sf::Vector2f(torsoCenter.x, torsoCenter.y + torso.getSize().y * 0.3f), BODY_PART::SPINE_LOW},
+            {sf::Vector2f(torsoCenter.x, torso.getPosition().y + torso.getSize().y), BODY_PART::PELVIS}};
+    }
+
     // Key skeleton landmarks (these will be placed strategically in the outline)
     sf::Vector2f HEAD, NECK, SPINE_UP, SPINE_MID, SPINE_LOW, PELVIS;
     sf::Vector2f CLAV_R, CLAV_L;
@@ -29,98 +218,73 @@ public:
 
     Human(const sf::Vector2f &orig, const float &h) : origin(orig), height(h)
     {
-        s = height / 180.f; // More realistic human height proportions
+        s = h / 175.f; // Scale factor based on height (matching human.cpp)
 
-        // Define canonical skeleton positions
-        HEAD = origin + sf::Vector2f(0.f, -80.f) * s;
-        NECK = origin + sf::Vector2f(0.f, -65.f) * s;
-        SPINE_UP = origin + sf::Vector2f(0.f, -45.f) * s;  // Upper chest
-        SPINE_MID = origin + sf::Vector2f(0.f, -20.f) * s; // Mid torso
-        SPINE_LOW = origin + sf::Vector2f(0.f, 5.f) * s;   // Lower back
-        PELVIS = origin + sf::Vector2f(0.f, 20.f) * s;     // Pelvis center
+        // Create shape-based human figure (similar to human.cpp)
+        float headRadius = 15.f * s;
+        float limbWidth = 8.f * s;
+        float torsoWidth = 25.f * s;
+        float torsoHeight = 50.f * s;
+        float limbLength = 50.f * s;
+        float handFootSize = 10.f * s;
 
-        CLAV_R = origin + sf::Vector2f(15.f, -60.f) * s;  // Right clavicle
-        CLAV_L = origin + sf::Vector2f(-15.f, -60.f) * s; // Left clavicle
-        SHO_R = origin + sf::Vector2f(25.f, -55.f) * s;   // Right shoulder
-        SHO_L = origin + sf::Vector2f(-25.f, -55.f) * s;  // Left shoulder
-        ELB_R = origin + sf::Vector2f(35.f, -25.f) * s;   // Right elbow
-        ELB_L = origin + sf::Vector2f(-35.f, -25.f) * s;  // Left elbow
-        WRIST_R = origin + sf::Vector2f(38.f, 0.f) * s;   // Right wrist
-        WRIST_L = origin + sf::Vector2f(-38.f, 0.f) * s;  // Left wrist
-        HAND_R = origin + sf::Vector2f(40.f, 5.f) * s;    // Right hand
-        HAND_L = origin + sf::Vector2f(-40.f, 5.f) * s;   // Left hand
+        // Head and Neck
+        head.setRadius(headRadius);
+        head.setPosition(origin.x - headRadius, origin.y - torsoHeight / 2 - headRadius * 2);
 
-        HIP_R = origin + sf::Vector2f(12.f, 25.f) * s;    // Right hip
-        HIP_L = origin + sf::Vector2f(-12.f, 25.f) * s;   // Left hip
-        KNEE_R = origin + sf::Vector2f(15.f, 60.f) * s;   // Right knee
-        KNEE_L = origin + sf::Vector2f(-15.f, 60.f) * s;  // Left knee
-        ANKLE_R = origin + sf::Vector2f(12.f, 85.f) * s;  // Right ankle
-        ANKLE_L = origin + sf::Vector2f(-12.f, 85.f) * s; // Left ankle
-        FOOT_R = origin + sf::Vector2f(12.f, 90.f) * s;   // Right foot
-        FOOT_L = origin + sf::Vector2f(-12.f, 90.f) * s;  // Left foot
+        neck.setSize(sf::Vector2f(limbWidth, 10.f * s));
+        neck.setPosition(head.getPosition().x + headRadius - limbWidth / 2, head.getPosition().y + headRadius * 2);
 
-        // Create human silhouette with strategic skeleton joint placement
-        outline = {
-            // Head
-            {HEAD, BODY_PART::HEAD},
-            {origin + sf::Vector2f(8.f, -75.f) * s, BODY_PART::NONE},
-            {origin + sf::Vector2f(12.f, -68.f) * s, BODY_PART::NONE},
-            {NECK, BODY_PART::NECK},
+        // Torso
+        torso.setSize(sf::Vector2f(torsoWidth, torsoHeight));
+        torso.setPosition(neck.getPosition().x + limbWidth / 2 - torsoWidth / 2, neck.getPosition().y + neck.getSize().y);
 
-            // Right side
-            {CLAV_R, BODY_PART::CLAV_R},
-            {SHO_R, BODY_PART::SHO_R},
-            {origin + sf::Vector2f(30.f, -45.f) * s, BODY_PART::NONE},
-            {ELB_R, BODY_PART::ELB_R},
-            {origin + sf::Vector2f(37.f, -10.f) * s, BODY_PART::NONE},
-            {WRIST_R, BODY_PART::WRIST_R},
-            {HAND_R, BODY_PART::HAND_R},
+        // Arms (slightly rotated outward to form a 'V' shape)
+        rightArm.setSize(sf::Vector2f(limbWidth, limbLength));
+        rightArm.setOrigin(limbWidth / 2, 0);
+        rightArm.setPosition(torso.getPosition().x + torsoWidth, torso.getPosition().y);
+        rightArm.setRotation(-15); // Rotated slightly outward
 
-            // Right torso and leg
-            {origin + sf::Vector2f(35.f, -5.f) * s, BODY_PART::NONE},
-            {origin + sf::Vector2f(28.f, 10.f) * s, BODY_PART::NONE},
-            {HIP_R, BODY_PART::HIP_R},
-            {origin + sf::Vector2f(17.f, 40.f) * s, BODY_PART::NONE},
-            {KNEE_R, BODY_PART::KNEE_R},
-            {origin + sf::Vector2f(14.f, 75.f) * s, BODY_PART::NONE},
-            {ANKLE_R, BODY_PART::ANKLE_R},
-            {FOOT_R, BODY_PART::FOOT_R},
+        leftArm.setSize(sf::Vector2f(limbWidth, limbLength));
+        leftArm.setOrigin(limbWidth / 2, 0);
+        leftArm.setPosition(torso.getPosition().x, torso.getPosition().y);
+        leftArm.setRotation(15); // Rotated slightly outward
 
-            // Bottom
-            {origin + sf::Vector2f(8.f, 92.f) * s, BODY_PART::NONE},
-            {origin + sf::Vector2f(0.f, 93.f) * s, BODY_PART::NONE},
-            {origin + sf::Vector2f(-8.f, 92.f) * s, BODY_PART::NONE},
+        // Hands
+        rightHand.setSize(sf::Vector2f(handFootSize, handFootSize));
+        rightHand.setOrigin(handFootSize / 2, 0);
+        // Position hands relative to the end of the rotated arms
+        sf::FloatRect rightArmBounds = rightArm.getGlobalBounds();
+        rightHand.setPosition(rightArmBounds.left + rightArmBounds.width / 2, rightArmBounds.top + rightArmBounds.height);
 
-            // Left leg
-            {FOOT_L, BODY_PART::FOOT_L},
-            {ANKLE_L, BODY_PART::ANKLE_L},
-            {origin + sf::Vector2f(-14.f, 75.f) * s, BODY_PART::NONE},
-            {KNEE_L, BODY_PART::KNEE_L},
-            {origin + sf::Vector2f(-17.f, 40.f) * s, BODY_PART::NONE},
-            {HIP_L, BODY_PART::HIP_L},
+        leftHand.setSize(sf::Vector2f(handFootSize, handFootSize));
+        leftHand.setOrigin(handFootSize / 2, 0);
+        // Position hands relative to the end of the rotated arms
+        sf::FloatRect leftArmBounds = leftArm.getGlobalBounds();
+        leftHand.setPosition(leftArmBounds.left + leftArmBounds.width / 2, leftArmBounds.top + leftArmBounds.height);
 
-            // Left torso and arm
-            {origin + sf::Vector2f(-28.f, 10.f) * s, BODY_PART::NONE},
-            {origin + sf::Vector2f(-35.f, -5.f) * s, BODY_PART::NONE},
-            {HAND_L, BODY_PART::HAND_L},
-            {WRIST_L, BODY_PART::WRIST_L},
-            {origin + sf::Vector2f(-37.f, -10.f) * s, BODY_PART::NONE},
-            {ELB_L, BODY_PART::ELB_L},
-            {origin + sf::Vector2f(-30.f, -45.f) * s, BODY_PART::NONE},
-            {SHO_L, BODY_PART::SHO_L},
-            {CLAV_L, BODY_PART::CLAV_L},
+        // Legs (straight)
+        rightLeg.setSize(sf::Vector2f(limbWidth, limbLength));
+        rightLeg.setOrigin(limbWidth / 2, 0);
+        rightLeg.setPosition(torso.getPosition().x + torsoWidth, torso.getPosition().y + torsoHeight);
+        rightLeg.setRotation(0);
 
-            // Left side of head
-            {origin + sf::Vector2f(-12.f, -68.f) * s, BODY_PART::NONE},
-            {origin + sf::Vector2f(-8.f, -75.f) * s, BODY_PART::NONE},
-        };
+        leftLeg.setSize(sf::Vector2f(limbWidth, limbLength));
+        leftLeg.setOrigin(limbWidth / 2, 0);
+        leftLeg.setPosition(torso.getPosition().x, torso.getPosition().y + torsoHeight);
+        leftLeg.setRotation(0);
 
-        // Interior skeleton joints (spine segments and pelvis center)
-        interior_joints = {
-            {SPINE_UP, BODY_PART::SPINE_UP},
-            {SPINE_MID, BODY_PART::SPINE_MID},
-            {SPINE_LOW, BODY_PART::SPINE_LOW},
-            {PELVIS, BODY_PART::PELVIS}};
+        // Feet
+        rightFoot.setSize(sf::Vector2f(handFootSize * 1.5f, handFootSize * 0.75f));
+        rightFoot.setOrigin(handFootSize * 0.75f, 0);
+        rightFoot.setPosition(rightLeg.getPosition().x, rightLeg.getPosition().y + limbLength);
+
+        leftFoot.setSize(sf::Vector2f(handFootSize * 1.5f, handFootSize * 0.75f));
+        leftFoot.setOrigin(handFootSize * 0.75f, 0);
+        leftFoot.setPosition(leftLeg.getPosition().x, leftLeg.getPosition().y + limbLength);
+
+        // Generate outline and interior joints from the shapes
+        generateOutlineFromShapes();
     }
     ~Human() = default;
 };
