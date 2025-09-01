@@ -53,6 +53,8 @@ int main()
     sf::RectangleShape ground(sf::Vector2f((float)W, 50.f));
     ground.setPosition(0.f, H - 50.f);
     ground.setFillColor(sf::Color(100, 200, 100));
+    // ground contact friction (0..1, larger = more friction)
+    const float ground_friction = 0.5f;
 
     // fixed timestep
     const float dt = 1.f / 120.f; // physics timestep
@@ -173,6 +175,8 @@ int main()
                     p.pos.y = minY;
                     // damp velocity
                     p.prev_pos.y = p.pos.y + (p.prev_pos.y - p.pos.y) * 0.3f;
+                    // horizontal friction: reduce tangential (x) motion when contacting ground
+                    p.prev_pos.x = p.pos.x + (p.prev_pos.x - p.pos.x) * (1.f - ground_friction);
                 }
             }
 

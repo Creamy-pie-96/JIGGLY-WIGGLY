@@ -7,41 +7,53 @@
 
 void Player::create_figure()
 {
-    // Create a circular outline and build a filled soft-body from it
-    int n = 20;
-    float r = height;
+    // Build a human-ish outline identical to demo_jelly.cpp, scaled by `height`.
+    // demo_jelly's vertical span is ~165px; map `height` to that span.
+    float demo_span = 165.f;
+    float scale = (height > 0.f) ? (height / demo_span) : 1.f;
     sf::Vector2f pos{100.f, 100.f};
 
     std::vector<sf::Vector2f> outline;
-    outline.reserve(n);
-    for (int i = 0; i < n; ++i)
-    {
-        float angle = i * 2.f * M_PI / float(n);
-        outline.push_back(pos + sf::Vector2f(std::cos(angle), std::sin(angle)) * r);
-    }
+    outline.reserve(16);
 
-    // choose spacing relative to player size (clamped) — smaller spacing = more wiggle/higher cost
-    float spacing = std::max(6.f, r * 0.35f);
+    outline.push_back(pos + sf::Vector2f(-18.f, -70.f) * scale);
+    outline.push_back(pos + sf::Vector2f(18.f, -70.f) * scale);
+    outline.push_back(pos + sf::Vector2f(36.f, -30.f) * scale);
+    outline.push_back(pos + sf::Vector2f(36.f, 0.f) * scale);
+    outline.push_back(pos + sf::Vector2f(18.f, 40.f) * scale);
+    outline.push_back(pos + sf::Vector2f(6.f, 80.f) * scale);
+    outline.push_back(pos + sf::Vector2f(2.f, 95.f) * scale);
+    outline.push_back(pos + sf::Vector2f(-6.f, 95.f) * scale);
+    outline.push_back(pos + sf::Vector2f(-10.f, 80.f) * scale);
+    outline.push_back(pos + sf::Vector2f(-28.f, 40.f) * scale);
+    outline.push_back(pos + sf::Vector2f(-36.f, 0.f) * scale);
+    outline.push_back(pos + sf::Vector2f(-36.f, -30.f) * scale);
+
+    // choose spacing relative to player size (smaller spacing = denser lattice)
+    float spacing = std::max(6.f, 8.f * scale);
 
     // create filled soft-body using new factory
     figure.clear();
     figure.create_filled_from_polygon(outline, spacing);
 
-    // tune defaults for player feel (override global defaults if desired)
-    figure.stiffness = 0.85f;
-    figure.stiffness_ring = 1.0f;
-    figure.stiffness_spoke = 1.0f;
-    figure.damping = 0.992f;
-    figure.pressure = 0.6f;
+    // tune defaults for player feel (adjusted by weight/height)
+    // figure.stiffness = 0.85f;
+    // figure.stiffness_ring = 1.0f;
+    // figure.stiffness_spoke = 1.0f;
+    // damping: heavier players should be less bouncy
+    figure.damping = std::clamp(0.985f - (weight - 70.f) * 0.0008f, 0.94f, 0.998f);
+    // pressure: mild baseline, slightly lower for heavier players
+    figure.pressure = std::clamp(0.6f - (weight - 70.f) * 0.0025f, 0.2f, 1.2f);
     figure.iterations = 10;
 
-    // safe defaults: center slightly heavier, peripherals lighter
+    // scale masses with player weight while preserving ratios
     if (figure.points.size())
     {
         figure.points[0].locked = false;
-        figure.points[0].mass = 2.f;
+        float massScale = (weight > 0.f) ? (weight / 70.f) : 1.f;
+        figure.points[0].mass = 2.f * massScale;
         for (size_t i = 1; i < figure.points.size(); ++i)
-            figure.points[i].mass = 1.f;
+            figure.points[i].mass = 1.f * massScale;
     }
 }
 

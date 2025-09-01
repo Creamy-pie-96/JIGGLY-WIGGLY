@@ -91,7 +91,7 @@ public:
     ~Player();
 };
 
-Player::Player(std::string c) : velocity(0.f, 0.f), acceleration(0.f, 0.f), height(20.f), weight(30.f), alive(true), onGround(true), health(100.f), color(c)
+Player::Player(std::string c) : velocity(0.f, 0.f), acceleration(0.f, 0.f), height(100.f), weight(70.f), alive(true), onGround(true), health(100.f), color(c)
 {
     // for position need to create random position and place there!
     // position {random,random}

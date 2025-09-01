@@ -124,10 +124,10 @@ void Jelly::create_circle(int n, float r, sf::Vector2f c)
     }
 }
 
-// compute polygon area (peripheral points 1..N)
-static float compute_area(const std::vector<Point> &points)
+// compute polygon area for the first `perimCount` peripheral points (indices 1..perimCount)
+static float compute_area(const std::vector<Point> &points, int perimCount)
 {
-    int n = (int)points.size() - 1;
+    int n = perimCount;
     if (n < 3)
         return 0.f;
     float a = 0.f;
@@ -184,8 +184,8 @@ void Jelly::create_from_points(const std::vector<sf::Vector2f> &pts)
         float dist2 = std::sqrt(delta2.x * delta2.x + delta2.y * delta2.y);
         springs.push_back({0, i, dist2});
     }
-    // compute and store target area for pressure
-    targetArea = compute_area(points);
+    // compute and store target area for pressure (perimeter only)
+    targetArea = compute_area(points, N);
 }
 
 void Jelly::create_from_points_resampled(const std::vector<sf::Vector2f> &pts, int targetPerimeterPoints)
@@ -310,24 +310,31 @@ void Jelly::create_filled_from_polygon(const std::vector<sf::Vector2f> &pts, flo
         ymax = std::max(ymax, p.y);
     }
 
-    // triangular lattice steps
+    // triangular lattice steps (centered on polygon centroid to reduce sampling bias)
     float dx = spacing;
     float dy = spacing * 0.86602540378f; // sqrt(3)/2
 
+    // compute sampling grid size to cover bounding box, add margin
+    float width = xmax - xmin;
+    float height = ymax - ymin;
+    int cols = std::max(3, int(std::ceil(width / dx)) + 5);
+    int rows = std::max(3, int(std::ceil(height / dy)) + 5);
+
+    // origin so the grid is centered on centroid 'c'
+    float origin_x = c.x - (cols - 1) * 0.5f * dx;
+    float origin_y = c.y - (rows - 1) * 0.5f * dy;
+
     // map from grid coords to point index
-    std::vector<std::vector<int>> grid;
-    int cols = int((xmax - xmin) / dx) + 3;
-    int rows = int((ymax - ymin) / dy) + 3;
-    grid.assign(rows, std::vector<int>(cols, -1));
+    std::vector<std::vector<int>> grid(rows, std::vector<int>(cols, -1));
 
     // add interior points that lie inside polygon
     for (int r = 0; r < rows; ++r)
     {
-        float y = ymin + (r - 1) * dy;
+        float y = origin_y + r * dy;
         float xoff = (r % 2) ? dx * 0.5f : 0.f;
         for (int cidx = 0; cidx < cols; ++cidx)
         {
-            float x = xmin + (cidx - 1) * dx + xoff;
+            float x = origin_x + cidx * dx + xoff;
             sf::Vector2f pos{x, y};
             if (!point_in_polygon(pos, pts))
                 continue;
@@ -403,8 +410,9 @@ void Jelly::create_filled_from_polygon(const std::vector<sf::Vector2f> &pts, flo
         }
     }
 
-    // compute and store target area (use polygon area from perimeter)
-    targetArea = compute_area(points);
+    // set perimeter count and compute and store target area (use polygon area from perimeter)
+    N = Nperim;
+    targetArea = compute_area(points, N);
     // set radius for heuristic
     radius = maxr;
 }
@@ -413,16 +421,16 @@ void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
 {
     const sf::Vector2f gravity{0.f, 981.f};
 
-    // apply pressure force as acceleration on peripheral points
-    if (pressure != 0.f && targetArea > 0.f)
+    // apply pressure force as acceleration only on peripheral points (1..N)
+    if (pressure != 0.f && targetArea > 0.f && N >= 3)
     {
-        float currentArea = compute_area(points);
+        float currentArea = compute_area(points, N);
         if (currentArea > 1e-6f)
         {
             float areaRatio = currentArea / targetArea;
             // pressureFactor: positive if current < target (pull outward)
             float pressureFactor = (1.f - areaRatio) * pressure;
-            for (int i = 1; i <= (int)points.size() - 1; ++i)
+            for (int i = 1; i <= N; ++i)
             {
                 Point &p = points[i];
                 if (p.locked)
@@ -555,8 +563,8 @@ void Jelly::draw(sf::RenderWindow &window)
         return;
 
     // draw filled shape from peripheral points (1..N)
-    int peripheralCount = (int)points.size() - 1;
-    if (peripheralCount >= 3)
+    int peripheralCount = N;
+    if (peripheralCount >= 3 && (int)points.size() > peripheralCount)
     {
         sf::ConvexShape shape;
         shape.setPointCount(peripheralCount);
