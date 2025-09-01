@@ -12,7 +12,7 @@ struct Point
     sf::Vector2f pos, prev_pos, acc = {0.f, 0.f};
 
     bool locked = false;
-    float mass = 1.f;
+    float mass = 0.0001f;
 };
 struct Spring
 {
@@ -36,14 +36,14 @@ public:
     std::vector<Spring> springs;
     int iterations = 10;
     // global stiffness multiplier for constraint correction (0..1)
-    float stiffness = 1.f;
+    float stiffness = 0.6f;
     // separate multipliers
-    float stiffness_ring = 1.f;  // peripheral-peripheral springs
-    float stiffness_spoke = 1.f; // center-peripheral springs
+    float stiffness_ring = 0.6f;   // peripheral-peripheral springs
+    float stiffness_spoke = 0.65f; // center-peripheral springs
     // internal pressure (0 = off). Positive -> expansion force
-    float pressure = 0.f;
+    float pressure = 1.8f;
     // damping multiplier applied to velocity (0..1, closer to 1 more bouncy)
-    float damping = 0.99f;
+    float damping = 0.98f;
     // target area for pressure preservation
     float targetArea = 0.f;
     void update(float dt);
@@ -58,6 +58,10 @@ public:
     void create_from_points(const std::vector<sf::Vector2f> &pts);
     // create from points but resample edges to have approximately target peripheral points
     void create_from_points_resampled(const std::vector<sf::Vector2f> &pts, int targetPerimeterPoints);
+    // create a filled soft-body by sampling the interior of a polygon with a triangular lattice
+    // polygon: ordered peripheral points
+    // spacing: approximate distance between interior lattice points (pixels)
+    void create_filled_from_polygon(const std::vector<sf::Vector2f> &pts, float spacing = 12.f);
 
     float get_radius() const { return radius; }
 
@@ -225,6 +229,184 @@ void Jelly::create_from_points_resampled(const std::vector<sf::Vector2f> &pts, i
     }
 
     create_from_points(res);
+}
+
+// helper: point-in-polygon (winding / raycast)
+static bool point_in_polygon(const sf::Vector2f &pt, const std::vector<sf::Vector2f> &poly)
+{
+    bool inside = false;
+    int n = (int)poly.size();
+    for (int i = 0, j = n - 1; i < n; j = i++)
+    {
+        const sf::Vector2f &pi = poly[i];
+        const sf::Vector2f &pj = poly[j];
+        bool intersect = ((pi.y > pt.y) != (pj.y > pt.y)) && (pt.x < (pj.x - pi.x) * (pt.y - pi.y) / (pj.y - pi.y + 1e-12f) + pi.x);
+        if (intersect)
+            inside = !inside;
+    }
+    return inside;
+}
+
+void Jelly::create_filled_from_polygon(const std::vector<sf::Vector2f> &pts, float spacing)
+{
+    if (pts.size() < 3)
+    {
+        create_from_points(pts);
+        return;
+    }
+
+    // compute centroid for index 0
+    sf::Vector2f c{0.f, 0.f};
+    for (auto &p : pts)
+        c += p;
+    c /= float(pts.size());
+
+    // prepare perimeter as before
+    int Nperim = (int)pts.size();
+    points.clear();
+    springs.clear();
+
+    // reserve an estimated number of points
+    points.reserve(Nperim + 64);
+
+    points.resize(Nperim + 1);
+    points[0].pos = c;
+    points[0].prev_pos = c;
+    points[0].mass = 1.f;
+    points[0].locked = false;
+
+    float maxr = 0.f;
+    for (int i = 1; i <= Nperim; ++i)
+    {
+        points[i].pos = pts[i - 1];
+        points[i].prev_pos = pts[i - 1];
+        points[i].mass = 1.f;
+        points[i].locked = false;
+        float d = std::hypot(points[i].pos.x - c.x, points[i].pos.y - c.y);
+        if (d > maxr)
+            maxr = d;
+    }
+
+    // create perimeter ring + spokes
+    for (int i = 1; i <= Nperim; ++i)
+    {
+        int next = (i % Nperim) + 1;
+        sf::Vector2f delta = points[next].pos - points[i].pos;
+        float dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+        springs.push_back({i, next, dist});
+
+        sf::Vector2f delta2 = points[i].pos - points[0].pos;
+        float dist2 = std::sqrt(delta2.x * delta2.x + delta2.y * delta2.y);
+        springs.push_back({0, i, dist2});
+    }
+
+    // bounding box for sampling
+    float xmin = pts[0].x, xmax = pts[0].x, ymin = pts[0].y, ymax = pts[0].y;
+    for (auto &p : pts)
+    {
+        xmin = std::min(xmin, p.x);
+        xmax = std::max(xmax, p.x);
+        ymin = std::min(ymin, p.y);
+        ymax = std::max(ymax, p.y);
+    }
+
+    // triangular lattice steps
+    float dx = spacing;
+    float dy = spacing * 0.86602540378f; // sqrt(3)/2
+
+    // map from grid coords to point index
+    std::vector<std::vector<int>> grid;
+    int cols = int((xmax - xmin) / dx) + 3;
+    int rows = int((ymax - ymin) / dy) + 3;
+    grid.assign(rows, std::vector<int>(cols, -1));
+
+    // add interior points that lie inside polygon
+    for (int r = 0; r < rows; ++r)
+    {
+        float y = ymin + (r - 1) * dy;
+        float xoff = (r % 2) ? dx * 0.5f : 0.f;
+        for (int cidx = 0; cidx < cols; ++cidx)
+        {
+            float x = xmin + (cidx - 1) * dx + xoff;
+            sf::Vector2f pos{x, y};
+            if (!point_in_polygon(pos, pts))
+                continue;
+            Point p;
+            p.pos = pos;
+            p.prev_pos = pos;
+            p.mass = 1.f;
+            p.locked = false;
+            int idx = (int)points.size();
+            points.push_back(p);
+            grid[r][cidx] = idx;
+        }
+    }
+
+    // create lattice springs connecting neighbors in triangular grid
+    for (int r = 0; r < rows; ++r)
+    {
+        for (int cidx = 0; cidx < cols; ++cidx)
+        {
+            int idx = grid[r][cidx];
+            if (idx == -1)
+                continue;
+            // neighbor offsets: right, down-right, down-left
+            const int offs[3][2] = {{0, 1}, {1, (r % 2) ? 1 : 0}, {1, (r % 2) ? 0 : -1}};
+            // simple explicit neighbors covering the triangular connectivity
+            // right neighbor
+            if (cidx + 1 < cols)
+            {
+                int j = grid[r][cidx + 1];
+                if (j != -1)
+                {
+                    sf::Vector2f d = points[j].pos - points[idx].pos;
+                    springs.push_back({idx, j, std::sqrt(d.x * d.x + d.y * d.y)});
+                }
+            }
+            // down-right / up-right depending on row parity
+            if (r + 1 < rows)
+            {
+                int cj = cidx + (r % 2 ? 0 : 1);
+                if (cj >= 0 && cj < cols)
+                {
+                    int j = grid[r + 1][cj];
+                    if (j != -1)
+                    {
+                        sf::Vector2f d = points[j].pos - points[idx].pos;
+                        springs.push_back({idx, j, std::sqrt(d.x * d.x + d.y * d.y)});
+                    }
+                }
+                int cj2 = cidx + (r % 2 ? 1 : 0);
+                if (cj2 >= 0 && cj2 < cols)
+                {
+                    int j2 = grid[r + 1][cj2];
+                    if (j2 != -1)
+                    {
+                        sf::Vector2f d = points[j2].pos - points[idx].pos;
+                        springs.push_back({idx, j2, std::sqrt(d.x * d.x + d.y * d.y)});
+                    }
+                }
+            }
+        }
+    }
+
+    // connect nearby perimeter points to lattice boundary points so the border is glued
+    for (int pi = 1; pi <= Nperim; ++pi)
+    {
+        for (size_t qi = Nperim + 1; qi < points.size(); ++qi)
+        {
+            float d = std::hypot(points[qi].pos.x - points[pi].pos.x, points[qi].pos.y - points[pi].pos.y);
+            if (d <= spacing * 1.5f)
+            {
+                springs.push_back({pi, (int)qi, d});
+            }
+        }
+    }
+
+    // compute and store target area (use polygon area from perimeter)
+    targetArea = compute_area(points);
+    // set radius for heuristic
+    radius = maxr;
 }
 
 void Jelly::update_verlet(float dt, sf::Vector2f acceleration)

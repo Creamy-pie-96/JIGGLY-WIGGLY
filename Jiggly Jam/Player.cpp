@@ -1,4 +1,5 @@
 #include "Player.hpp"
+#include <algorithm>
 
 // Player implementation guided by demo_jelly.cpp patterns.
 // Movement applies a local force each physics step (scaled by dt).
@@ -6,13 +7,27 @@
 
 void Player::create_figure()
 {
-    // Create a circular jelly body for the player
+    // Create a circular outline and build a filled soft-body from it
     int n = 20;
     float r = height;
     sf::Vector2f pos{100.f, 100.f};
-    figure = Jelly(n, r, pos);
 
-    // tune defaults for player feel
+    std::vector<sf::Vector2f> outline;
+    outline.reserve(n);
+    for (int i = 0; i < n; ++i)
+    {
+        float angle = i * 2.f * M_PI / float(n);
+        outline.push_back(pos + sf::Vector2f(std::cos(angle), std::sin(angle)) * r);
+    }
+
+    // choose spacing relative to player size (clamped) — smaller spacing = more wiggle/higher cost
+    float spacing = std::max(6.f, r * 0.35f);
+
+    // create filled soft-body using new factory
+    figure.clear();
+    figure.create_filled_from_polygon(outline, spacing);
+
+    // tune defaults for player feel (override global defaults if desired)
     figure.stiffness = 0.85f;
     figure.stiffness_ring = 1.0f;
     figure.stiffness_spoke = 1.0f;
@@ -20,7 +35,7 @@ void Player::create_figure()
     figure.pressure = 0.6f;
     figure.iterations = 10;
 
-    // safe defaults
+    // safe defaults: center slightly heavier, peripherals lighter
     if (figure.points.size())
     {
         figure.points[0].locked = false;

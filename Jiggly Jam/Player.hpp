@@ -47,9 +47,9 @@ private:
     // you can tweak this at runtime or per-player for control feel
     // float move_force = 20000.f;
     float coyoteTimer = 0.f;
-        // movement state for edge detection and momentum
-        int last_move_sign = 0; // -1,0,1
-        float air_drag = 4.f;   // per-second horizontal damping when not pressing
+    // movement state for edge detection and momentum
+    int last_move_sign = 0; // -1,0,1
+    float air_drag = 4.f;   // per-second horizontal damping when not pressing
     void create_figure();
     // ground / contact tuning
     float ground_level = 600.f;

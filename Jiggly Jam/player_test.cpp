@@ -69,15 +69,30 @@ int main()
                 switch (ev.key.code)
                 {
                 // player1
-                case sf::Keyboard::A: p1_left_state = down; break;
-                case sf::Keyboard::D: p1_right_state = down; break;
-                case sf::Keyboard::W: p1_jump_state = down; break;
-                case sf::Keyboard::Space: p1_jump_state = down; break;
+                case sf::Keyboard::A:
+                    p1_left_state = down;
+                    break;
+                case sf::Keyboard::D:
+                    p1_right_state = down;
+                    break;
+                case sf::Keyboard::W:
+                    p1_jump_state = down;
+                    break;
+                case sf::Keyboard::Space:
+                    p1_jump_state = down;
+                    break;
                 // player2
-                case sf::Keyboard::Left: p2_left_state = down; break;
-                case sf::Keyboard::Right: p2_right_state = down; break;
-                case sf::Keyboard::Up: p2_jump_state = down; break;
-                default: break;
+                case sf::Keyboard::Left:
+                    p2_left_state = down;
+                    break;
+                case sf::Keyboard::Right:
+                    p2_right_state = down;
+                    break;
+                case sf::Keyboard::Up:
+                    p2_jump_state = down;
+                    break;
+                default:
+                    break;
                 }
             }
 
@@ -93,13 +108,13 @@ int main()
         float frameTime = clock.restart().asSeconds();
         accumulator += frameTime;
 
-    // use event-driven key states
-    bool p1_left = p1_left_state;
-    bool p1_right = p1_right_state;
-    bool p1_jump = p1_jump_state;
-    bool p2_left = p2_left_state;
-    bool p2_right = p2_right_state;
-    bool p2_jump = p2_jump_state;
+        // use event-driven key states
+        bool p1_left = p1_left_state;
+        bool p1_right = p1_right_state;
+        bool p1_jump = p1_jump_state;
+        bool p2_left = p2_left_state;
+        bool p2_right = p2_right_state;
+        bool p2_jump = p2_jump_state;
 
         // edge detection for jumps
         bool p1_jump_edge = p1_jump && !p1_jump_prev;

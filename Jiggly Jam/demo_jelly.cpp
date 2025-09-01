@@ -35,7 +35,9 @@ int main()
     human.push_back(origin + sf::Vector2f(-36, -30) * scale);
 
     Jelly jelly;
-    jelly.create_from_points(human);
+    // create a filled soft-body from the human outline using triangular lattice sampling
+    const float spacing = 8.f; // smaller = more points/wigglier, larger = cheaper
+    jelly.create_filled_from_polygon(human, spacing);
 
     // tune masses and locked points lightly (lock top of head for stability test)
     if (jelly.points.size() > 1)
@@ -59,7 +61,7 @@ int main()
 
     // simple controls
     const float move_force = 20000.f;
-    const float jump_impulse = 800.f;
+    const float jump_impulse = 20000.f;
 
     while (window.isOpen())
     {
