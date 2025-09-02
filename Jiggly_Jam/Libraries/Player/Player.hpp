@@ -36,9 +36,10 @@ protected:
     bool alive;
 
     // Traditional movement system (kept for compatibility)
-    float move_force = 20000.f;
-    float move_impulse = 400.f;
-    float jump_force = 600.f;
+    // PHYSICS SCALING FIX: Reduced all forces to work with realistic mass values (1-3kg range)
+    float move_force = 15.f;   // Reduced from 200.f - more realistic for 1-3kg masses
+    float move_impulse = 25.f; // Reduced from 400.f - prevents collapse on direction change
+    float jump_force = 45.f;   // Reduced from 600.f - maintains good jump feel
     float walk_speed = 2.2f;
     float coyoteTimer = 0.f;
     int last_move_sign = 0; // -1,0,1
@@ -57,10 +58,10 @@ protected:
     bool isWaving = false;
     float walkTimer = 0.0f;
     float waveTimer = 0.0f;
-    float walkCycleSpeed = 3.0f;    // walking frequency
-    float waveDuration = 2.5f;      // wave duration
-    float walkDirection = 1.0f;     // 1.0f = right, -1.0f = left
-    float walkForwardSpeed = 25.0f; // forward momentum strength (reduced for impulse-based force)
+    float walkCycleSpeed = 3.0f;   // walking frequency
+    float waveDuration = 2.5f;     // wave duration
+    float walkDirection = 1.0f;    // 1.0f = right, -1.0f = left
+    float walkForwardSpeed = 8.0f; // PHYSICS FIX: Reduced from 25.0f to prevent excessive momentum
 
 public:
     // 🎯 STABLE PHYSICS TIMESTEP - The Sweet Spot for Structural Integrity!

@@ -51,6 +51,12 @@ bool SettingsParser::loadSettings(const std::string &filepath)
         {
             parseAdvancedSpringSystem(file);
         }
+        /*
+        else if (line.find("\"physics_driven_walking\"") != std::string::npos)
+        {
+            parsePhysicsDrivenWalking(file);
+        }
+        */
         else if (line.find("\"performance\"") != std::string::npos)
         {
             parsePerformanceSettings(file);
@@ -857,6 +863,158 @@ void SettingsParser::printSettings() const
     std::cout << "  Strength Modulation: " << (settings.advanced_spring_system.spring_strength_modulation.enabled ? "Enabled" : "Disabled") << std::endl;
     std::cout << "  Adaptive Physics: " << (settings.advanced_spring_system.adaptive_physics.enabled ? "Enabled" : "Disabled") << std::endl;
 
+    /*
+    std::cout << "\n🚶 Physics-Driven Walking:" << std::endl;
+    std::cout << "  Walking Gait: " << (settings.physics_driven_walking.walking_gait.enabled ? "Enabled" : "Disabled") << std::endl;
+    std::cout << "  Step Frequency: " << settings.physics_driven_walking.walking_gait.step_frequency << " Hz" << std::endl;
+    std::cout << "  Center-of-Mass Dynamics: " << (settings.physics_driven_walking.center_of_mass_dynamics.enabled ? "Enabled" : "Disabled") << std::endl;
+    std::cout << "  Dynamic Balancing: " << (settings.physics_driven_walking.center_of_mass_dynamics.dynamic_balancing ? "Enabled" : "Disabled") << std::endl;
+    std::cout << "  Visual Enhancements: " << (settings.physics_driven_walking.visual_enhancements.enabled ? "Enabled" : "Disabled") << std::endl;
+    */
+
     std::cout << "===================================\n"
               << std::endl;
+}
+
+// Phase 2: Physics-Driven Walking parser implementation
+void SettingsParser::parsePhysicsDrivenWalking(std::ifstream &file)
+{
+    std::string line;
+    while (std::getline(file, line))
+    {
+        line = trim(line);
+
+        if (line.find("}") != std::string::npos && line.find("\"") == std::string::npos)
+        {
+            break;
+        }
+
+        if (line.find("\"walking_gait\"") != std::string::npos)
+        {
+            parseWalkingGait(file);
+        }
+        else if (line.find("\"center_of_mass_dynamics\"") != std::string::npos)
+        {
+            parseCenterOfMassDynamics(file);
+        }
+        else if (line.find("\"visual_enhancements\"") != std::string::npos)
+        {
+            parseVisualEnhancements(file);
+        }
+    }
+}
+
+void SettingsParser::parseWalkingGait(std::ifstream &file)
+{
+    std::string line;
+    while (std::getline(file, line))
+    {
+        line = trim(line);
+
+        if (line.find("}") != std::string::npos && line.find("\"") == std::string::npos)
+        {
+            break;
+        }
+
+        std::string key, value;
+        if (parseLine(line, key, value))
+        {
+            if (key == "enabled")
+            {
+                settings.physics_driven_walking.walking_gait.enabled = parseBool(value, true);
+            }
+            else if (key == "step_cycle_duration")
+            {
+                settings.physics_driven_walking.walking_gait.step_cycle_duration = parseFloat(value, 1.0f);
+            }
+            else if (key == "step_height")
+            {
+                settings.physics_driven_walking.walking_gait.step_height = parseFloat(value, 25.0f);
+            }
+            else if (key == "step_length")
+            {
+                settings.physics_driven_walking.walking_gait.step_length = parseFloat(value, 40.0f);
+            }
+            else if (key == "step_wobble_amount")
+            {
+                settings.physics_driven_walking.walking_gait.step_wobble_amount = parseFloat(value, 0.1f);
+            }
+            else if (key == "lift_force_strength")
+            {
+                settings.physics_driven_walking.walking_gait.lift_force_strength = parseFloat(value, 35.0f); // PHYSICS FIX: Default fallback reduced
+            }
+            else if (key == "swing_force_strength")
+            {
+                settings.physics_driven_walking.walking_gait.swing_force_strength = parseFloat(value, 25.0f); // PHYSICS FIX: Default fallback reduced
+            }
+            else if (key == "plant_force_strength")
+            {
+                settings.physics_driven_walking.walking_gait.plant_force_strength = parseFloat(value, 50.0f); // PHYSICS FIX: Default fallback reduced
+            }
+        }
+    }
+}
+
+void SettingsParser::parseCenterOfMassDynamics(std::ifstream &file)
+{
+    std::string line;
+    while (std::getline(file, line))
+    {
+        line = trim(line);
+
+        if (line.find("}") != std::string::npos && line.find("\"") == std::string::npos)
+        {
+            break;
+        }
+
+        std::string key, value;
+        if (parseLine(line, key, value))
+        {
+            if (key == "enabled")
+            {
+                settings.physics_driven_walking.center_of_mass_dynamics.enabled = parseBool(value, true);
+            }
+            // Note: For now, we'll skip the nested structure fields that don't exist in current struct
+            // These can be added when we expand the center of mass dynamics structure
+        }
+    }
+}
+
+void SettingsParser::parseVisualEnhancements(std::ifstream &file)
+{
+    std::string line;
+    while (std::getline(file, line))
+    {
+        line = trim(line);
+
+        if (line.find("}") != std::string::npos && line.find("\"") == std::string::npos)
+        {
+            break;
+        }
+
+        std::string key, value;
+        if (parseLine(line, key, value))
+        {
+            if (key == "foot_contact_effects")
+            {
+                settings.physics_driven_walking.visual_enhancements.foot_contact_effects = parseBool(value, true);
+            }
+            else if (key == "ground_interaction")
+            {
+                settings.physics_driven_walking.visual_enhancements.ground_interaction = parseBool(value, true);
+            }
+            else if (key == "step_sound_triggers")
+            {
+                settings.physics_driven_walking.visual_enhancements.step_sound_triggers = parseBool(value, true);
+            }
+            else if (key == "weight_shift_visualization")
+            {
+                settings.physics_driven_walking.visual_enhancements.weight_shift_visualization = parseBool(value, false);
+            }
+            else if (key == "gait_debug_display")
+            {
+                settings.physics_driven_walking.visual_enhancements.gait_debug_display = parseBool(value, false);
+            }
+        }
+    }
 }

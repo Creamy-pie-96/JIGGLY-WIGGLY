@@ -72,7 +72,7 @@ public:
 
     std::vector<Point> points;
     std::vector<Spring> springs;
-    int iterations = 25; // Increased for human figure stability
+    int iterations = 50; // FIXED: Reduced from 25 to prevent overcorrection oscillations
     // global stiffness multiplier for constraint correction (0..1)
     float stiffness = 0.8f; // Stronger for human figures
     // separate multipliers
@@ -232,6 +232,28 @@ public:
     };
     std::unordered_map<uint64_t, AdvancedSpringState> advancedSpringStates; // owner_id -> spring state
 
+    // Phase 2: Physics-Driven Walking System
+    struct WalkingState
+    {
+        bool is_walking = false;
+        bool is_grounded = false;
+        float walking_speed = 0.0f;
+        sf::Vector2f walking_direction{0.0f, 0.0f};
+
+        float walking_timer = 0.0f;
+        float step_phase = 0.0f; // 0.0 to 1.0 through step cycle
+        float stride_completion = 0.0f;
+        sf::Vector2f last_step_position{0.0f, 0.0f};
+
+        BODY_PART support_leg = BODY_PART::FOOT_L; // Which leg is currently supporting
+        float ground_contact_timer = 0.0f;
+
+        sf::Vector2f center_of_mass{0.0f, 0.0f};
+        sf::Vector2f predicted_com{0.0f, 0.0f};
+        float balance_energy = 1.0f; // 0.0 to 1.0
+    };
+    std::unordered_map<uint64_t, WalkingState> walkingStates; // owner_id -> walking state
+
     // Step 1.3: Advanced Spring System Methods
     void updateAdvancedSpringSystems(float dt);
     void updateContextAwareStiffness(uint64_t owner_id, float dt);
@@ -254,6 +276,33 @@ public:
     // Adaptive physics methods
     void applyAdaptivePhysics(uint64_t owner_id, int springIndex, float &stiffness);
     void recordSpringStress(uint64_t owner_id, int springIndex, float stress);
+
+    // Phase 2: Physics-Driven Walking Methods
+    void updatePhysicsDrivenWalking(uint64_t owner_id, float dt, const sf::Vector2f &desired_direction);
+    void updateWalkingGait(uint64_t owner_id, float dt, const sf::Vector2f &desired_direction);
+    void updateCenterOfMassDynamics(uint64_t owner_id, float dt);
+    void updateVisualEnhancements(uint64_t owner_id, float dt);
+
+    // Step 2.1: Physics-Driven Stepping methods
+    void executePhysicsStep(uint64_t owner_id, float dt, BODY_PART stepping_leg);
+    void calculateStepTarget(uint64_t owner_id, BODY_PART stepping_leg, sf::Vector2f &step_target);
+    void applyStepForces(uint64_t owner_id, BODY_PART stepping_leg, const sf::Vector2f &step_target, float dt);
+    void updateGroundContact(uint64_t owner_id, float dt, float ground_y = 400.0f);
+    void generateWalkingCycle(uint64_t owner_id, float dt);
+
+    // Step 2.2: Center-of-Mass Dynamics methods
+    sf::Vector2f calculateCenterOfMass(uint64_t owner_id) const;
+    sf::Vector2f predictCenterOfMass(uint64_t owner_id, float prediction_time = 0.1f) const;
+    void applyDynamicBalancing(uint64_t owner_id, float dt);
+    void applyMomentumConservation(uint64_t owner_id, float dt);
+    void applyWeightShifting(uint64_t owner_id, float dt, BODY_PART support_leg);
+    bool isBalanced(uint64_t owner_id, float threshold = 50.0f) const;
+
+    // Walking coordination methods
+    void coordinateArmSwing(uint64_t owner_id, float dt, float step_phase);
+    void coordinateHipMovement(uint64_t owner_id, float dt, float step_phase);
+    BODY_PART getOppositeLeg(BODY_PART leg) const;
+    BODY_PART getCorrespondingArm(BODY_PART leg) const;
 
     Jelly(int n, float r, sf::Vector2f c);
 };

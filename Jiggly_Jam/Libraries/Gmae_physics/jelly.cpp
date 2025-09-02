@@ -15,10 +15,14 @@ void Jelly::add_point(const sf::Vector2f &pos, BODY_PART body_part)
     // Game-physics based mass distribution for proper balance
     float mass = 1.0f; // default
 
+    // CORRECTED: Head gets lighter mass to prevent pendulum oscillation
+    if (body_part == BODY_PART::HEAD)
+    {
+        mass = 2.0f; // Lighter head to reduce oscillation
+    }
     // Heavy skeletal structure for stability
-    if (body_part == BODY_PART::PELVIS || body_part == BODY_PART::SPINE_LOW ||
-        body_part == BODY_PART::SPINE_MID || body_part == BODY_PART::SPINE_UP ||
-        body_part == BODY_PART::HEAD)
+    else if (body_part == BODY_PART::PELVIS || body_part == BODY_PART::SPINE_LOW ||
+             body_part == BODY_PART::SPINE_MID || body_part == BODY_PART::SPINE_UP)
     {
         mass = 5.0f; // Heavy core/spine
     }
@@ -638,8 +642,15 @@ void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
             effectiveDamping *= fleshDampingMultiplier;
         }
 
-        sf::Vector2f velocity = (p.pos - p.prev_pos) * effectiveDamping;
+        // CORRECTED VERLET INTEGRATION: Proper velocity damping
+        sf::Vector2f velocity = p.pos - p.prev_pos;
+
+        // Apply damping to velocity BEFORE position update
+        velocity *= effectiveDamping;
+
+        // Standard Verlet integration: x_new = x + v_damped + a*dt^2
         sf::Vector2f new_pos = p.pos + velocity + a * dt * dt;
+
         p.prev_pos = p.pos;
         p.pos = new_pos;
         p.acc = {0.f, 0.f};
@@ -651,6 +662,17 @@ void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
     {
         updateSpringFatigue(dt);
         updateAdvancedSpringSystems(dt); // Step 1.3: Advanced Spring System
+
+        // Phase 2: Physics-Driven Walking System (ENABLED)
+        // Update walking for all entities with this jelly
+        for (const auto &walkingPair : walkingStates)
+        {
+            uint64_t owner_id = walkingPair.first;
+            // For now, assume no desired direction (stationary).
+            // In full implementation, this would come from input system
+            sf::Vector2f desired_direction{0.0f, 0.0f};
+            updatePhysicsDrivenWalking(owner_id, dt, desired_direction);
+        }
     }
 
     // STABLE CONSTRAINT SOLVER: Position-based dynamics approach
@@ -728,6 +750,14 @@ void Jelly::update_verlet(float dt, sf::Vector2f acceleration)
             }
 
             correction *= effectiveStiffness;
+
+            // CRITICAL FIX: Clamp correction to prevent overcorrection oscillations
+            float maxCorrection = s.rest_length * 0.1f; // Max 10% of rest length per iteration
+            float correctionMagnitude = std::sqrt(correction.x * correction.x + correction.y * correction.y);
+            if (correctionMagnitude > maxCorrection)
+            {
+                correction *= (maxCorrection / correctionMagnitude);
+            }
 
             // Apply mass-weighted corrections
             float totalMass = p1.mass + p2.mass;
@@ -1038,6 +1068,7 @@ void Jelly::connect_flesh_to_skeleton(uint64_t owner_id, float fleshToSkeletonSt
 // Apply postural stability forces to help character stand upright
 void Jelly::apply_postural_stability(uint64_t owner_id, float dt, float ground_y)
 {
+    // std::cout << "[DEBUG] apply_postural_stability called for owner_id=" << owner_id << std::endl;
     if (points.empty())
         return;
 
@@ -1062,12 +1093,26 @@ void Jelly::apply_postural_stability(uint64_t owner_id, float dt, float ground_y
         Point &foot = points[idx];
 
         // Check if foot is near ground
-        if (foot.pos.y >= ground_y - 5.0f)
+        if (foot.pos.y >= ground_y - 10.0f) // Slightly increased threshold for better contact
         {
-            foot.pos.y = ground_y;      // Snap to ground
-            foot.prev_pos.y = ground_y; // Stop vertical movement
-            // Add some horizontal friction
-            foot.prev_pos.x = foot.pos.x + (foot.prev_pos.x - foot.pos.x) * 0.8f;
+            // Gentle ground constraint instead of hard snapping
+            float penetration = foot.pos.y - ground_y;
+            if (penetration > 0)
+            {
+                foot.pos.y = ground_y;      // Snap to ground only if penetrating
+                foot.prev_pos.y = ground_y; // Stop vertical movement
+            }
+
+            // Progressive horizontal friction based on contact
+            if (foot.pos.y >= ground_y - 2.0f)
+            {
+                float contact_factor = 1.0f - (foot.pos.y - ground_y + 2.0f) / 2.0f; // 1.0 at ground, 0.0 at -2
+                contact_factor = std::max(0.0f, std::min(1.0f, contact_factor));
+
+                // Apply friction proportional to ground contact
+                float friction_strength = 0.6f + (contact_factor * 0.3f); // 0.6 to 0.9 friction
+                foot.prev_pos.x = foot.pos.x + (foot.prev_pos.x - foot.pos.x) * friction_strength;
+            }
         }
     };
 
@@ -1100,10 +1145,33 @@ void Jelly::apply_postural_stability(uint64_t owner_id, float dt, float ground_y
             {
                 spineDir /= len;
                 sf::Vector2f uprightDir{0.0f, -1.0f}; // Up direction
-                sf::Vector2f correctionForce = (uprightDir - spineDir) * 50.0f;
 
-                upper.acc += correctionForce / upper.mass;
-                lower.acc -= correctionForce / lower.mass;
+                // Calculate how far from upright we are
+                float uprightness = spineDir.y; // -1 = perfectly upright, +1 = upside down
+
+                // Only apply correction if significantly off-vertical AND not moving too fast
+                sf::Vector2f upperVel = upper.pos - upper.prev_pos;
+                sf::Vector2f lowerVel = lower.pos - lower.prev_pos;
+                float relativeSpeed = std::hypot(upperVel.x - lowerVel.x, upperVel.y - lowerVel.y);
+
+                if (uprightness > -0.8f && relativeSpeed < 4.0f) // Increased threshold for better responsiveness
+                {
+                    // Velocity-proportional force (less force when moving faster)
+                    float speedFactor = std::max(0.2f, 1.0f - relativeSpeed / 4.0f);
+                    sf::Vector2f correctionForce = (uprightDir - spineDir) * 4.0f * speedFactor; // Velocity-aware force
+
+                    // CRITICAL FIX: Much gentler forces for head to prevent oscillation
+                    if (spineChain[i + 1] == BODY_PART::HEAD)
+                    {
+                        correctionForce *= 0.3f; // Much weaker forces for head
+                        speedFactor *= 0.5f;     // Extra damping for head
+                    }
+
+                    // Apply same force to both points to avoid fighting
+                    sf::Vector2f avgForce = correctionForce * 0.5f;
+                    upper.acc += avgForce / upper.mass;
+                    lower.acc += avgForce / lower.mass;
+                }
             }
         }
     };
@@ -1112,12 +1180,12 @@ void Jelly::apply_postural_stability(uint64_t owner_id, float dt, float ground_y
     // 3. ACTIVE BALANCE CONTROLLER: Keep center of mass over base of support
     auto activeBalance = [&]()
     {
-        // Find center of mass
+        // Find center of mass (CORRECTED: only skeleton joints for accurate COM)
         sf::Vector2f com{0.0f, 0.0f};
         float total_mass = 0.0f;
         for (auto &p : points)
         {
-            if (p.id == owner_id)
+            if (p.id == owner_id && p.body_part != BODY_PART::NONE) // Only skeleton joints
             {
                 com += p.pos * p.mass;
                 total_mass += p.mass;
@@ -1151,9 +1219,20 @@ void Jelly::apply_postural_stability(uint64_t owner_id, float dt, float ground_y
 
                 sf::Vector2f com_error = base_center - com;
                 com_error.y = 0.0f; // Only horizontal correction
-                sf::Vector2f balance_force = com_error * 30.0f;
 
-                pelvis.acc += balance_force / pelvis.mass;
+                // Check pelvis velocity - apply proportional force based on movement
+                sf::Vector2f pelvis_vel = pelvis.pos - pelvis.prev_pos;
+                float pelvis_speed = std::hypot(pelvis_vel.x, pelvis_vel.y);
+
+                // Only apply force if error is significant
+                float error_magnitude = std::hypot(com_error.x, com_error.y);
+                if (error_magnitude > 5.0f && pelvis_speed < 3.0f) // Increased threshold
+                {
+                    // Velocity-proportional force (gentler when moving faster)
+                    float speedFactor = std::max(0.3f, 1.0f - pelvis_speed / 3.0f);
+                    sf::Vector2f balance_force = com_error * 2.5f * speedFactor; // Velocity-aware force
+                    pelvis.acc += balance_force / pelvis.mass;
+                }
             }
         }
     };
@@ -1171,14 +1250,42 @@ void Jelly::apply_postural_stability(uint64_t owner_id, float dt, float ground_y
         // Target hip height (approximate human proportions)
         float target_hip_height = ground_y - 90.0f;
 
-        if (pelvis.pos.y > target_hip_height)
+        // CORRECTED: Apply bidirectional height correction
+        float height_error = pelvis.pos.y - target_hip_height; // Positive = too high, Negative = too low
+
+        if (std::abs(height_error) > 10.0f)
         {
-            float height_error = target_hip_height - pelvis.pos.y;
-            sf::Vector2f lift_force{0.0f, height_error * 20.0f};
-            pelvis.acc += lift_force / pelvis.mass;
+            // Check vertical velocity for proportional response
+            sf::Vector2f pelvis_vel = pelvis.pos - pelvis.prev_pos;
+
+            // Apply proportional force (up if too high, down if too low)
+            float speedFactor = std::max(0.2f, 1.0f - std::abs(pelvis_vel.y) / 2.0f);
+            sf::Vector2f height_force{0.0f, -height_error * 1.5f * speedFactor}; // Proportional to error
+            pelvis.acc += height_force / pelvis.mass;
         }
     };
     maintainHipHeight();
+
+    // CORRECTED: Apply selective damping during calculations, not globally after
+    // This prevents oscillatory forces from accumulating
+    const float selectiveDamping = 0.88f;
+    for (auto &point : points)
+    {
+        if (point.id == owner_id && !point.locked)
+        {
+            // Apply damping proportional to acceleration magnitude (more damping for high forces)
+            float acc_magnitude = std::hypot(point.acc.x, point.acc.y);
+            float damping_factor = selectiveDamping;
+            if (acc_magnitude > 50.0f) // High acceleration indicates instability
+            {
+                damping_factor = 0.75f; // More aggressive damping for unstable points
+            }
+
+            sf::Vector2f velocity = point.pos - point.prev_pos;
+            velocity *= damping_factor;
+            point.prev_pos = point.pos - velocity;
+        }
+    }
 }
 
 // 🎮 GANG BEASTS EVOLUTION: Settings Integration Implementation
@@ -1356,6 +1463,7 @@ void Jelly::applySpringFatigue(int springIndex, float &stiffness)
 
 void Jelly::apply_enhanced_postural_stability(uint64_t owner_id, float dt, float ground_y)
 {
+    std::cout << "[DEBUG] apply_enhanced_postural_stability called for owner_id=" << owner_id << std::endl;
     if (!gangBeastsSettings)
     {
         // Fallback to original stability system
@@ -1397,7 +1505,7 @@ void Jelly::apply_enhanced_postural_stability(uint64_t owner_id, float dt, float
         return;
     }
 
-    // Apply original stability with modifications
+    // Apply original stability ONCE (no double correction)
     apply_postural_stability(owner_id, dt, ground_y);
 
     // Apply Gang Beasts enhancements after base stability
@@ -1730,16 +1838,33 @@ void Jelly::updateAdaptivePhysics(uint64_t owner_id, float dt)
 // State detection methods
 Jelly::PhysicsState Jelly::detectPhysicsState(uint64_t owner_id) const
 {
-    // Simple state detection based on physics properties
-    // In a full implementation, this would analyze velocity, ground contact, etc.
+    // Detect physics state based on walking system and physics properties
+    if (isWalking(owner_id))
+    {
+        return PhysicsState::WALKING;
+    }
 
-    // For now, default to IDLE to maintain original behavior
+    if (isJumping(owner_id))
+    {
+        return PhysicsState::JUMPING;
+    }
+
+    if (isFalling(owner_id))
+    {
+        return PhysicsState::FALLING;
+    }
+
+    // Default to IDLE for stable behavior
     return PhysicsState::IDLE;
 }
 
 bool Jelly::isWalking(uint64_t owner_id) const
 {
-    // Placeholder - would analyze horizontal velocity and ground contact
+    auto walkState = walkingStates.find(owner_id);
+    if (walkState != walkingStates.end())
+    {
+        return walkState->second.is_walking && walkState->second.is_grounded;
+    }
     return false;
 }
 
@@ -1847,4 +1972,546 @@ void Jelly::recordSpringStress(uint64_t owner_id, int springIndex, float stress)
 
     // For now, don't modify learned stiffness to maintain original behavior
     // In full implementation, this would adapt spring properties based on stress
+}
+
+// =============================================================================
+// PHASE 2: PHYSICS-DRIVEN WALKING SYSTEM IMPLEMENTATION
+// =============================================================================
+
+void Jelly::updatePhysicsDrivenWalking(uint64_t owner_id, float dt, const sf::Vector2f &desired_direction)
+{
+    if (!gangBeastsSettings || !gangBeastsSettings->physics_driven_walking.walking_gait.enabled)
+        return;
+
+    // Initialize walking state if needed
+    if (walkingStates.find(owner_id) == walkingStates.end())
+    {
+        walkingStates[owner_id] = WalkingState{};
+    }
+
+    auto &walkState = walkingStates[owner_id];
+
+    // Update sub-systems in logical order
+    updateWalkingGait(owner_id, dt, desired_direction);
+    updateCenterOfMassDynamics(owner_id, dt);
+    updateVisualEnhancements(owner_id, dt);
+}
+
+// Step 2.1: Physics-Driven Stepping Implementation
+void Jelly::updateWalkingGait(uint64_t owner_id, float dt, const sf::Vector2f &desired_direction)
+{
+    if (!gangBeastsSettings->physics_driven_walking.walking_gait.enabled)
+        return;
+
+    auto &walkState = walkingStates[owner_id];
+    const auto &gaitSettings = gangBeastsSettings->physics_driven_walking.walking_gait;
+
+    // Update walking timer and phase
+    walkState.walking_timer += dt;
+    float step_frequency = 1.0f / gaitSettings.step_cycle_duration; // Convert duration to frequency
+    float cycle_duration = gaitSettings.step_cycle_duration;
+
+    // Apply variability to walking cycle
+    if (gaitSettings.step_wobble_amount > 0.0f)
+    {
+        float variability = gaitSettings.step_wobble_amount;
+        float random_factor = 1.0f + (variability * 0.5f * (2.0f * (rand() / float(RAND_MAX)) - 1.0f));
+        cycle_duration *= random_factor;
+    }
+
+    walkState.step_phase = fmod(walkState.walking_timer, cycle_duration) / cycle_duration;
+
+    // Determine if we should be walking
+    float desired_speed = sqrt(desired_direction.x * desired_direction.x + desired_direction.y * desired_direction.y);
+    walkState.is_walking = (desired_speed > 0.1f);
+    walkState.walking_speed = desired_speed;
+
+    if (walkState.is_walking && desired_speed > 0.01f)
+    {
+        walkState.walking_direction = sf::Vector2f(desired_direction.x / desired_speed, desired_direction.y / desired_speed);
+    }
+
+    // Update ground contact
+    updateGroundContact(owner_id, dt);
+
+    // Generate walking cycle if walking
+    if (walkState.is_walking && walkState.is_grounded)
+    {
+        generateWalkingCycle(owner_id, dt);
+    }
+
+    // Coordinate upper body movement
+    coordinateArmSwing(owner_id, dt, walkState.step_phase);
+    coordinateHipMovement(owner_id, dt, walkState.step_phase);
+}
+
+void Jelly::generateWalkingCycle(uint64_t owner_id, float dt)
+{
+    auto &walkState = walkingStates[owner_id];
+    const auto &gaitSettings = gangBeastsSettings->physics_driven_walking.walking_gait;
+
+    // Determine which leg should be stepping based on phase
+    BODY_PART stepping_leg = (walkState.step_phase < 0.5f) ? BODY_PART::FOOT_L : BODY_PART::FOOT_R;
+    BODY_PART support_leg = getOppositeLeg(stepping_leg);
+
+    walkState.support_leg = support_leg;
+
+    // Execute physics-driven step
+    executePhysicsStep(owner_id, dt, stepping_leg);
+
+    // Apply weight shifting to support leg
+    const auto &comSettings = gangBeastsSettings->physics_driven_walking.center_of_mass_dynamics;
+    if (comSettings.enabled)
+    {
+        applyWeightShifting(owner_id, dt, support_leg);
+    }
+}
+
+void Jelly::executePhysicsStep(uint64_t owner_id, float dt, BODY_PART stepping_leg)
+{
+    const auto &gaitSettings = gangBeastsSettings->physics_driven_walking.walking_gait;
+    auto &walkState = walkingStates[owner_id];
+
+    // Calculate step target position
+    sf::Vector2f step_target;
+    calculateStepTarget(owner_id, stepping_leg, step_target);
+
+    // Apply step forces
+    applyStepForces(owner_id, stepping_leg, step_target, dt);
+
+    // Update stride completion
+    int stepping_index = find_part_index(owner_id, stepping_leg);
+    if (stepping_index >= 0)
+    {
+        sf::Vector2f current_pos = points[stepping_index].pos;
+        float distance_to_target = sqrt(pow(step_target.x - current_pos.x, 2) + pow(step_target.y - current_pos.y, 2));
+
+        if (distance_to_target < 30.0f) // Use hardcoded threshold for now
+        {
+            walkState.stride_completion = 1.0f;
+            walkState.last_step_position = current_pos;
+        }
+        else
+        {
+            walkState.stride_completion = std::max(0.0f, 1.0f - (distance_to_target / (gaitSettings.step_height * 2.0f)));
+        }
+    }
+}
+
+void Jelly::calculateStepTarget(uint64_t owner_id, BODY_PART stepping_leg, sf::Vector2f &step_target)
+{
+    auto &walkState = walkingStates[owner_id];
+    // Safeguard: gangBeastsSettings may be null in some tests or initialization paths.
+    // If it's missing or the walking gait is disabled, provide a reasonable fallback
+    // step target so we don't dereference a null pointer.
+
+    // Get center of mass for reference
+    sf::Vector2f com = calculateCenterOfMass(owner_id);
+
+    if (!gangBeastsSettings || !gangBeastsSettings->physics_driven_walking.walking_gait.enabled)
+    {
+        // Simple fallback: small stride ahead of current walking direction
+        float stride_length = 20.0f * walkState.walking_speed;
+        step_target.x = com.x + (walkState.walking_direction.x * stride_length);
+        step_target.y = com.y + 60.0f;
+        return;
+    }
+
+    const auto &gaitSettings = gangBeastsSettings->physics_driven_walking.walking_gait;
+
+    // Calculate forward step distance
+    float stride_length = gaitSettings.step_length * walkState.walking_speed; // Use step_length setting
+
+    // Step target is ahead of COM in walking direction
+    step_target.x = com.x + (walkState.walking_direction.x * stride_length);
+    step_target.y = com.y + 60.0f; // Approximate ground level relative to COM
+
+    // Apply foot placement accuracy (add some randomness for Gang Beasts feel)
+    if (gaitSettings.step_wobble_amount > 0.1f) // Use wobble amount
+    {
+        float inaccuracy = gaitSettings.step_wobble_amount;
+        float random_x = inaccuracy * 20.0f * (2.0f * (rand() / float(RAND_MAX)) - 1.0f);
+        float random_y = inaccuracy * 10.0f * (2.0f * (rand() / float(RAND_MAX)) - 1.0f);
+
+        step_target.x += random_x;
+        step_target.y += random_y;
+    }
+}
+
+void Jelly::applyStepForces(uint64_t owner_id, BODY_PART stepping_leg, const sf::Vector2f &step_target, float dt)
+{
+    const auto &gaitSettings = gangBeastsSettings->physics_driven_walking.walking_gait;
+    auto &walkState = walkingStates[owner_id];
+
+    int leg_index = find_part_index(owner_id, stepping_leg);
+    if (leg_index < 0)
+        return;
+
+    sf::Vector2f current_pos = points[leg_index].pos;
+    sf::Vector2f step_vector = sf::Vector2f(step_target.x - current_pos.x, step_target.y - current_pos.y);
+
+    // Calculate step force magnitude
+    float step_force = gaitSettings.lift_force_strength; // Use lift force setting
+
+    // Modulate force based on step phase for more natural movement
+    float phase_in_step = (walkState.step_phase < 0.5f) ? (walkState.step_phase * 2.0f) : ((1.0f - walkState.step_phase) * 2.0f);
+    float lift_factor = sin(phase_in_step * M_PI); // Creates lift curve
+
+    // Apply lift during step
+    if (phase_in_step > 0.1f && phase_in_step < 0.9f)
+    {
+        step_vector.y -= gaitSettings.step_height * lift_factor;
+    }
+
+    // Normalize and scale force
+    float magnitude = sqrt(step_vector.x * step_vector.x + step_vector.y * step_vector.y);
+    if (magnitude > 0.001f)
+    {
+        step_vector.x = (step_vector.x / magnitude) * step_force;
+        step_vector.y = (step_vector.y / magnitude) * step_force;
+
+        // Apply the step force
+        apply_impulse_to_part(owner_id, stepping_leg, step_vector);
+    }
+}
+
+void Jelly::updateGroundContact(uint64_t owner_id, float dt, float ground_y)
+{
+    auto &walkState = walkingStates[owner_id];
+    const auto &gaitSettings = gangBeastsSettings->physics_driven_walking.walking_gait;
+
+    // Check if either foot is near ground
+    int left_foot = find_part_index(owner_id, BODY_PART::FOOT_L);
+    int right_foot = find_part_index(owner_id, BODY_PART::FOOT_R);
+
+    bool grounded = false;
+
+    if (left_foot >= 0)
+    {
+        float distance_to_ground = abs(points[left_foot].pos.y - ground_y);
+        if (distance_to_ground < 30.0f) // Use hardcoded threshold
+        {
+            grounded = true;
+        }
+    }
+
+    if (right_foot >= 0)
+    {
+        float distance_to_ground = abs(points[right_foot].pos.y - ground_y);
+        if (distance_to_ground < 30.0f) // Use hardcoded threshold
+        {
+            grounded = true;
+        }
+    }
+
+    // Update ground contact state
+    if (grounded)
+    {
+        walkState.ground_contact_timer += dt;
+        walkState.is_grounded = true;
+    }
+    else
+    {
+        walkState.ground_contact_timer = 0.0f;
+        walkState.is_grounded = (walkState.ground_contact_timer > 0.1f); // Small delay for stability
+    }
+}
+
+// Step 2.2: Center-of-Mass Dynamics Implementation
+void Jelly::updateCenterOfMassDynamics(uint64_t owner_id, float dt)
+{
+    if (!gangBeastsSettings->physics_driven_walking.center_of_mass_dynamics.enabled)
+        return;
+
+    auto &walkState = walkingStates[owner_id];
+    const auto &comSettings = gangBeastsSettings->physics_driven_walking.center_of_mass_dynamics;
+
+    // Update center of mass calculations
+    walkState.center_of_mass = calculateCenterOfMass(owner_id);
+    walkState.predicted_com = predictCenterOfMass(owner_id, 0.5f); // Use hardcoded prediction time
+
+    // Apply dynamic balancing if enabled
+    if (comSettings.balance_integration.stability_cooperation)
+    {
+        applyDynamicBalancing(owner_id, dt);
+    }
+
+    // Apply momentum conservation
+    applyMomentumConservation(owner_id, dt);
+}
+
+sf::Vector2f Jelly::calculateCenterOfMass(uint64_t owner_id) const
+{
+    sf::Vector2f com{0.0f, 0.0f};
+    float total_mass = 0.0f;
+    int count = 0;
+
+    // Calculate weighted center of mass for this owner
+    for (const auto &point : points)
+    {
+        if (point.id == owner_id)
+        {
+            float mass = 1.0f; // Base mass
+
+            // Apply mass distribution if Gang Beasts settings are available
+            if (gangBeastsSettings)
+            {
+                mass *= getMassMultiplier(point.body_part);
+            }
+
+            com.x += point.pos.x * mass;
+            com.y += point.pos.y * mass;
+            total_mass += mass;
+            count++;
+        }
+    }
+
+    if (total_mass > 0.0f)
+    {
+        com.x /= total_mass;
+        com.y /= total_mass;
+    }
+
+    return com;
+}
+
+sf::Vector2f Jelly::predictCenterOfMass(uint64_t owner_id, float prediction_time) const
+{
+    sf::Vector2f predicted_com{0.0f, 0.0f};
+    float total_mass = 0.0f;
+
+    // Predict COM position based on current velocities
+    for (const auto &point : points)
+    {
+        if (point.id == owner_id)
+        {
+            float mass = 1.0f;
+            if (gangBeastsSettings)
+            {
+                mass *= getMassMultiplier(point.body_part);
+            }
+
+            sf::Vector2f predicted_pos = point.pos + (point.pos - point.prev_pos) * prediction_time; // Use position difference for velocity
+
+            predicted_com.x += predicted_pos.x * mass;
+            predicted_com.y += predicted_pos.y * mass;
+            total_mass += mass;
+        }
+    }
+
+    if (total_mass > 0.0f)
+    {
+        predicted_com.x /= total_mass;
+        predicted_com.y /= total_mass;
+    }
+
+    return predicted_com;
+}
+
+void Jelly::applyDynamicBalancing(uint64_t owner_id, float dt)
+{
+    const auto &comSettings = gangBeastsSettings->physics_driven_walking.center_of_mass_dynamics;
+    auto &walkState = walkingStates[owner_id];
+
+    // Check if balancing is needed
+    if (!isBalanced(owner_id, 50.0f)) // Use hardcoded threshold
+    {
+        sf::Vector2f balance_force{0.0f, 0.0f};
+
+        // Calculate force needed to bring COM back over support
+        sf::Vector2f com_offset = walkState.predicted_com - walkState.center_of_mass;
+
+        // Apply corrective force proportional to offset
+        balance_force.x = -com_offset.x * comSettings.balance_integration.recovery_assistance;
+        balance_force.y = -com_offset.y * comSettings.balance_integration.recovery_assistance * 0.5f; // Less aggressive on Y
+
+        // Apply force to torso/core for balancing
+        int torso_index = find_part_index(owner_id, BODY_PART::SPINE_MID);
+        if (torso_index >= 0)
+        {
+            apply_impulse_to_part(owner_id, BODY_PART::SPINE_MID, balance_force);
+        }
+
+        // Reduce balance energy when actively balancing
+        walkState.balance_energy = std::max(0.1f, walkState.balance_energy - dt * 0.5f);
+    }
+    else
+    {
+        // Recover balance energy when stable
+        walkState.balance_energy = std::min(1.0f, walkState.balance_energy + dt * 0.2f);
+    }
+}
+
+void Jelly::applyMomentumConservation(uint64_t owner_id, float dt)
+{
+    const auto &comSettings = gangBeastsSettings->physics_driven_walking.center_of_mass_dynamics;
+    auto &walkState = walkingStates[owner_id];
+
+    // Apply momentum conservation to maintain walking energy
+    if (walkState.is_walking && comSettings.balance_integration.momentum_preservation > 0.0f)
+    {
+        sf::Vector2f momentum_force = walkState.walking_direction * comSettings.balance_integration.momentum_preservation * walkState.walking_speed * 10.0f;
+
+        // Apply momentum to center of mass (torso)
+        int torso_index = find_part_index(owner_id, BODY_PART::SPINE_MID);
+        if (torso_index >= 0)
+        {
+            apply_impulse_to_part(owner_id, BODY_PART::SPINE_MID, momentum_force);
+        }
+    }
+
+    // Apply forward lean compensation - CORRECTED: Apply to TORSO not HEAD
+    if (walkState.is_walking && comSettings.torso_lean.lean_amount > 0.0f)
+    {
+        sf::Vector2f lean_compensation(0.0f, -comSettings.torso_lean.lean_amount * walkState.walking_speed * 5.0f);
+
+        // FIXED: Apply lean forces to torso/spine, not head (prevents head oscillation)
+        int torso_index = find_part_index(owner_id, BODY_PART::SPINE_UP);
+        if (torso_index >= 0)
+        {
+            apply_impulse_to_part(owner_id, BODY_PART::SPINE_UP, lean_compensation * 0.5f); // Gentler force
+        }
+    }
+}
+
+void Jelly::applyWeightShifting(uint64_t owner_id, float dt, BODY_PART support_leg)
+{
+    const auto &comSettings = gangBeastsSettings->physics_driven_walking.center_of_mass_dynamics;
+    auto &walkState = walkingStates[owner_id];
+
+    // Apply weight shifting to support leg
+    int support_index = find_part_index(owner_id, support_leg);
+    if (support_index >= 0)
+    {
+        sf::Vector2f weight_shift_force(0.0f, comSettings.pelvis_shift.vertical_bob * 50.0f); // Downward force
+
+        // Add lateral shift based on walking direction
+        weight_shift_force.x = walkState.walking_direction.x * comSettings.pelvis_shift.shift_amount * 20.0f;
+
+        apply_impulse_to_part(owner_id, support_leg, weight_shift_force);
+    }
+
+    // Apply COM oscillation damping to reduce excessive wobbling
+    if (comSettings.torso_lean.lean_smoothing > 0.0f)
+    {
+        int torso_index = find_part_index(owner_id, BODY_PART::SPINE_MID);
+        if (torso_index >= 0)
+        {
+            sf::Vector2f damping_force = (points[torso_index].pos - points[torso_index].prev_pos) * (-comSettings.torso_lean.lean_smoothing * 0.1f);
+            apply_impulse_to_part(owner_id, BODY_PART::SPINE_MID, damping_force);
+        }
+    }
+}
+
+bool Jelly::isBalanced(uint64_t owner_id, float threshold) const
+{
+    if (walkingStates.find(owner_id) == walkingStates.end())
+        return true;
+
+    const auto &walkState = walkingStates.at(owner_id);
+
+    // Check if predicted COM is within threshold of current COM
+    float com_deviation = sqrt(pow(walkState.predicted_com.x - walkState.center_of_mass.x, 2) +
+                               pow(walkState.predicted_com.y - walkState.center_of_mass.y, 2));
+
+    return com_deviation < threshold;
+}
+
+// Walking coordination methods
+void Jelly::coordinateArmSwing(uint64_t owner_id, float dt, float step_phase)
+{
+    const auto &gaitSettings = gangBeastsSettings->physics_driven_walking.walking_gait;
+    const auto &comSettings = gangBeastsSettings->physics_driven_walking.center_of_mass_dynamics;
+    auto &walkState = walkingStates[owner_id];
+
+    if (!walkState.is_walking || comSettings.arm_counter_movement.swing_strength <= 0.0f)
+        return;
+
+    // Coordinate arm swing opposite to leg movement
+    float arm_swing_strength = comSettings.arm_counter_movement.swing_strength * 30.0f;
+
+    // Left arm swings forward when right leg steps forward (phase 0.5-1.0)
+    float left_arm_phase = fmod(step_phase + 0.5f, 1.0f);
+    float right_arm_phase = step_phase;
+
+    // Calculate swing forces
+    sf::Vector2f left_arm_swing{
+        static_cast<float>(sin(left_arm_phase * 2.0f * M_PI) * arm_swing_strength * walkState.walking_direction.x),
+        static_cast<float>(cos(left_arm_phase * 2.0f * M_PI) * arm_swing_strength * 0.5f)};
+
+    sf::Vector2f right_arm_swing{
+        static_cast<float>(sin(right_arm_phase * 2.0f * M_PI) * arm_swing_strength * walkState.walking_direction.x),
+        static_cast<float>(cos(right_arm_phase * 2.0f * M_PI) * arm_swing_strength * 0.5f)};
+
+    // Apply swing forces
+    apply_impulse_to_part(owner_id, BODY_PART::HAND_L, left_arm_swing);
+    apply_impulse_to_part(owner_id, BODY_PART::HAND_R, right_arm_swing);
+}
+
+void Jelly::coordinateHipMovement(uint64_t owner_id, float dt, float step_phase)
+{
+    const auto &gaitSettings = gangBeastsSettings->physics_driven_walking.walking_gait;
+    const auto &comSettings = gangBeastsSettings->physics_driven_walking.center_of_mass_dynamics;
+    auto &walkState = walkingStates[owner_id];
+
+    if (!walkState.is_walking || comSettings.pelvis_shift.shift_amount <= 0.0f)
+        return;
+
+    // Hip sway creates lateral movement during walking
+    float hip_sway_strength = comSettings.pelvis_shift.shift_amount * 15.0f;
+    float sway_direction = sin(step_phase * 2.0f * M_PI); // Side-to-side oscillation
+
+    sf::Vector2f hip_sway_force{
+        sway_direction * hip_sway_strength,
+        0.0f};
+
+    // Apply to torso for hip movement
+    apply_impulse_to_part(owner_id, BODY_PART::PELVIS, hip_sway_force);
+}
+
+BODY_PART Jelly::getOppositeLeg(BODY_PART leg) const
+{
+    switch (leg)
+    {
+    case BODY_PART::FOOT_L:
+    case BODY_PART::KNEE_L:
+        return BODY_PART::FOOT_R;
+    case BODY_PART::FOOT_R:
+    case BODY_PART::KNEE_R:
+        return BODY_PART::FOOT_L;
+    default:
+        return BODY_PART::FOOT_L; // Default fallback
+    }
+}
+
+BODY_PART Jelly::getCorrespondingArm(BODY_PART leg) const
+{
+    switch (leg)
+    {
+    case BODY_PART::FOOT_L:
+    case BODY_PART::KNEE_L:
+        return BODY_PART::HAND_R; // Opposite arm for natural gait
+    case BODY_PART::FOOT_R:
+    case BODY_PART::KNEE_R:
+        return BODY_PART::HAND_L;
+    default:
+        return BODY_PART::HAND_L; // Default fallback
+    }
+}
+
+// Visual enhancements (placeholder for future implementation)
+void Jelly::updateVisualEnhancements(uint64_t owner_id, float dt)
+{
+    if (!gangBeastsSettings->physics_driven_walking.visual_enhancements.foot_contact_effects)
+        return;
+
+    // Placeholder for visual effects like:
+    // - Foot impact effects
+    // - Walking trail effects
+    // - Center of mass visualization
+    // - Balance state indicators
+    // - Gait rhythm visualization
+    // - etc.
+
+    // These would be implemented when graphics system is ready
 }

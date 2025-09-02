@@ -2,36 +2,34 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Build Current File with Libraries",
+      "label": "Build",
       "type": "shell",
-      "command": "sh",
+      "command": "bash",
       "args": [
         "-c",
-        "FILE=\"${file}\"; WF=\"${workspaceFolder}/Jiggly Jam\"; BASENAME=\"${fileBasenameNoExtension}\"; \ncase \"$FILE\" in \n  *\"/Source_code/Tests/\"*|*\"/Tests/\"*|*\"/tests/\"*) OUT=\"$WF/build/test\"; FLAGS=\"-g\" ;; \n  *) OUT=\"$WF/build/final\"; FLAGS=\"-O2\" ;; \nesac; \nmkdir -p \"$OUT\"; cd \"$WF\"; \n# compile\ng++ -std=c++17 $FLAGS -I. \"$FILE\" Libraries/Gmae_physics/jelly.cpp Libraries/Controll_system/BodyControlSystem.cpp Libraries/Controll_system/InputManager.cpp Libraries/Player/Player.cpp -lsfml-graphics -lsfml-window -lsfml-system -o \"$OUT/$BASENAME\""
+        "mkdir -p \"${workspaceFolder}/build/test\" && g++ -std=c++17 -O2 \"${file}\" $(find \"${workspaceFolder}/Jiggly_Jam/Libraries\" -name '*.cpp' -type f 2>/dev/null) $(find \"${workspaceFolder}/Jiggly_Jam/Libraries\" -type d 2>/dev/null | while read dir; do echo \"-I$dir\"; done) -lsfml-graphics -lsfml-window -lsfml-system -o \"${workspaceFolder}/build/test/${fileBasenameNoExtension}\""
       ],
-      "group": "build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
       "problemMatcher": ["$gcc"]
     },
     {
-      "label": "Run Current Build",
+      "label": "Run",
       "type": "shell",
-      "command": "sh",
-      "args": [
-        "-c",
-        "FILE=\"${file}\"; WF=\"${workspaceFolder}/Jiggly Jam\"; BASENAME=\"${fileBasenameNoExtension}\"; \ncase \"$FILE\" in \n  *\"/Source_code/Tests/\"*|*\"/Tests/\"*|*\"/tests/\"*) OUT=\"$WF/build/test\" ;; \n  *) OUT=\"$WF/build/final\" ;; \nesac; \nexec \"$OUT/$BASENAME\""
-      ],
-      "group": "build"
-    },
-    {
-      "label": "Build All Libraries (single command)",
-      "type": "shell",
-      "command": "sh",
-      "args": [
-        "-c",
-        "cd \"${workspaceFolder}/Jiggly Jam\" && mkdir -p build/final build/test && g++ -std=c++17 -O2 -I. Source_code/main.cpp Libraries/Gmae_physics/jelly.cpp Libraries/Controll_system/BodyControlSystem.cpp Libraries/Controll_system/InputManager.cpp Libraries/Player/Player.cpp -lsfml-graphics -lsfml-window -lsfml-system -o build/final/app"
-      ],
-      "group": "build",
-      "problemMatcher": ["$gcc"]
+      "command": "${workspaceFolder}/build/test/${fileBasenameNoExtension}",
+      "args": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      //"dependsOn": "Build",
+      "problemMatcher": []
     }
   ]
 }

@@ -60,11 +60,11 @@
 
       "overcompensation": {
         "description": "Comic overreaction parameters",
-        "enabled": false,
+        "enabled": true,
         "overcompensation_factor": 1.0,
         "comment": "1.0 = Original balance strength, no overcompensation",
-        "oscillation_damping": 1.0,
-        "wobble_decay_time": 0.0
+        "oscillation_damping": 0.85,
+        "wobble_decay_time": 1.5
       },
 
       "sensitivity": {
@@ -176,6 +176,105 @@
           "recovery_time": 3.0,
           "stress_weakening": 0.0
         }
+      }
+    },
+
+    "physics_driven_walking": {
+      "description": "Phase 2: Physics-Driven Walking System (ENABLED)",
+
+      "walking_gait": {
+        "enabled": true,
+        "comment": "Enabled with default values",
+
+        "step_cycle_duration": 1.0,
+        "comment_duration": "Base time for a full step cycle (left + right)",
+
+        "step_height": 25.0,
+        "comment_height": "How high feet lift during steps (pixels)",
+
+        "step_length": 40.0,
+        "comment_length": "Forward distance covered per step (pixels)",
+
+        "step_wobble_amount": 0.1,
+        "comment_wobble": "Extra wobble/randomness in stepping (0.0-1.0)",
+
+        "lift_force_strength": 35.0,
+        "comment_lift": "Force applied to lift foot during step",
+
+        "swing_force_strength": 25.0,
+        "comment_swing": "Force applied to swing leg forward",
+
+        "plant_force_strength": 50.0,
+        "comment_plant": "Force applied when foot contacts ground",
+
+        "step_timing": {
+          "lift_phase_ratio": 0.2,
+          "swing_phase_ratio": 0.6,
+          "plant_phase_ratio": 0.2,
+          "comment": "Phase ratios must sum to 1.0"
+        },
+
+        "leg_exaggeration": {
+          "knee_bend_multiplier": 1.2,
+          "comment_knee": "Exaggerate knee bending during steps",
+          "hip_rotation_multiplier": 1.1,
+          "comment_hip": "Exaggerate hip rotation during steps",
+          "ankle_flex_multiplier": 1.3,
+          "comment_ankle": "Exaggerate ankle flexing during steps"
+        }
+      },
+
+      "center_of_mass_dynamics": {
+        "description": "Step 2.2 - Center-of-Mass Dynamics parameters",
+        "enabled": true,
+        "comment": "Natural body dynamics during walking",
+
+        "torso_lean": {
+          "lean_amount": 0.15,
+          "comment_lean": "How much torso leans over stepping foot (0.0-1.0)",
+          "lean_smoothing": 0.8,
+          "comment_smoothing": "How smooth the lean transitions are",
+          "anticipation_factor": 0.3,
+          "comment_anticipation": "Lean starts before step completes"
+        },
+
+        "pelvis_shift": {
+          "shift_amount": 0.12,
+          "comment_shift": "How much pelvis shifts laterally during steps",
+          "vertical_bob": 0.08,
+          "comment_bob": "Vertical bobbing motion during walking",
+          "rotation_amount": 0.1,
+          "comment_rotation": "Pelvis rotation during steps"
+        },
+
+        "arm_counter_movement": {
+          "swing_strength": 0.6,
+          "comment_swing": "Strength of arm counter-swing during walking",
+          "cross_body_swing": true,
+          "comment_cross": "Arms swing opposite to stepping leg",
+          "shoulder_rotation": 0.15,
+          "comment_shoulder": "Shoulder rotation during arm swing",
+          "elbow_bend_variation": 0.2,
+          "comment_elbow": "Natural elbow bend variation during swing"
+        },
+
+        "balance_integration": {
+          "stability_cooperation": true,
+          "comment_cooperation": "Walking works WITH postural stability system",
+          "recovery_assistance": 0.8,
+          "comment_recovery": "How much walking helps with balance recovery",
+          "momentum_preservation": 0.9,
+          "comment_momentum": "Preserve walking momentum during balance corrections"
+        }
+      },
+
+      "visual_enhancements": {
+        "description": "Visual polish for Gang Beasts style walking",
+        "foot_contact_effects": true,
+        "ground_interaction": true,
+        "step_sound_triggers": true,
+        "weight_shift_visualization": false,
+        "gait_debug_display": false
       }
     },
 

@@ -193,6 +193,82 @@ namespace GangBeastsSettings
         } adaptive_physics;
     };
 
+    // Phase 2: Gang Beasts Walking System
+    struct PhysicsDrivenWalking
+    {
+        // Step 2.1: Physics-Driven Stepping
+        struct WalkingGait
+        {
+            bool enabled = true;
+            float step_cycle_duration = 1.0f; // Base time for full step cycle
+            float step_height = 25.0f;        // How high feet lift during steps
+            float step_length = 40.0f;        // Forward distance per step
+            float step_wobble_amount = 0.1f;  // Extra wobble/randomness in stepping
+
+            float lift_force_strength = 35.0f;  // PHYSICS FIX: Reduced from 800.0f to match new scaling
+            float swing_force_strength = 25.0f; // PHYSICS FIX: Reduced from 600.0f to match new scaling
+            float plant_force_strength = 50.0f; // PHYSICS FIX: Reduced from 1200.0f to match new scaling
+
+            struct StepTiming
+            {
+                float lift_phase_ratio = 0.2f;  // Lifting foot phase
+                float swing_phase_ratio = 0.6f; // Swinging leg forward phase
+                float plant_phase_ratio = 0.2f; // Planting foot phase
+            } step_timing;
+
+            struct LegExaggeration
+            {
+                float knee_bend_multiplier = 1.2f;    // Exaggerate knee bending
+                float hip_rotation_multiplier = 1.1f; // Exaggerate hip rotation
+                float ankle_flex_multiplier = 1.3f;   // Exaggerate ankle flexing
+            } leg_exaggeration;
+        } walking_gait;
+
+        // Step 2.2: Center-of-Mass Dynamics
+        struct CenterOfMassDynamics
+        {
+            bool enabled = true;
+
+            struct TorsoLean
+            {
+                float lean_amount = 0.15f;        // How much torso leans over stepping foot
+                float lean_smoothing = 0.8f;      // How smooth lean transitions are
+                float anticipation_factor = 0.3f; // Lean starts before step completes
+            } torso_lean;
+
+            struct PelvisShift
+            {
+                float shift_amount = 0.12f;   // Lateral pelvis shift during steps
+                float vertical_bob = 0.08f;   // Vertical bobbing motion
+                float rotation_amount = 0.1f; // Pelvis rotation during steps
+            } pelvis_shift;
+
+            struct ArmCounterMovement
+            {
+                float swing_strength = 0.6f;       // Strength of arm counter-swing
+                bool cross_body_swing = true;      // Arms swing opposite to stepping leg
+                float shoulder_rotation = 0.15f;   // Shoulder rotation during swing
+                float elbow_bend_variation = 0.2f; // Natural elbow bend variation
+            } arm_counter_movement;
+
+            struct BalanceIntegration
+            {
+                bool stability_cooperation = true;  // Walking works WITH stability system
+                float recovery_assistance = 0.8f;   // How much walking helps balance
+                float momentum_preservation = 0.9f; // Preserve walking momentum during corrections
+            } balance_integration;
+        } center_of_mass_dynamics;
+
+        struct VisualEnhancements
+        {
+            bool foot_contact_effects = true;
+            bool ground_interaction = true;
+            bool step_sound_triggers = true;
+            bool weight_shift_visualization = false;
+            bool gait_debug_display = false;
+        } visual_enhancements;
+    };
+
     struct PerformanceSettings
     {
         int physics_substeps = 3;                 // Physics simulation substeps
@@ -221,6 +297,7 @@ namespace GangBeastsSettings
         PhysicsPersonality physics_personality;
         PosturalStability postural_stability;
         AdvancedSpringSystem advanced_spring_system; // Step 1.3: Advanced Spring System
+        PhysicsDrivenWalking physics_driven_walking; // Phase 2: Gang Beasts Walking
         PerformanceSettings performance;
         DebugSettings debug;
 
@@ -260,6 +337,7 @@ private:
     void parsePhysicsPersonality(std::ifstream &file);
     void parsePosturalStability(std::ifstream &file);
     void parseAdvancedSpringSystem(std::ifstream &file); // Step 1.3: Parser for advanced spring system
+    void parsePhysicsDrivenWalking(std::ifstream &file); // Phase 2: Parser for walking system
     void parsePerformanceSettings(std::ifstream &file);
     void parseDebugSettings(std::ifstream &file);
 
@@ -278,6 +356,11 @@ private:
     void parseSpringAnimationSystem(std::ifstream &file);
     void parseSpringStrengthModulation(std::ifstream &file);
     void parseAdaptivePhysics(std::ifstream &file);
+
+    // Phase 2: Physics-Driven Walking nested parsers
+    void parseWalkingGait(std::ifstream &file);
+    void parseCenterOfMassDynamics(std::ifstream &file);
+    void parseVisualEnhancements(std::ifstream &file);
 
 public:
     SettingsParser();

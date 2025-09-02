@@ -416,70 +416,260 @@ void Player::request_jump()
 void Player::update(float dt)
 {
     // =====================================================================
-    // INTEGRATED UPDATE: Stability + Control Systems Working Together
+    // ADVANCED PHYSICS-DRIVEN WALKING CYCLE SYSTEM
+    // Complete replacement with sophisticated physics integration
     // =====================================================================
 
-    // 🦴 STEP 1: ALWAYS apply physiological reflexes (postural stability)
-    // This is the foundation - like human unconscious balance systems
-    if (gangBeastsPhysicsEnabled && figure.hasGangBeastsSettings())
+    // STEP 1: Apply gravitational forces globally
+    // The Jelly physics engine automatically handles gravity in update_verlet,
+    // but we can apply additional global forces if needed for gameplay
+    if (figure.points.size() > 0)
     {
-        // 🎮 GANG BEASTS EVOLUTION: Use enhanced postural stability
-        figure.apply_enhanced_postural_stability(this->ID, dt, ground_level);
-    }
-    else
-    {
-        // Original stability system
-        figure.apply_postural_stability(this->ID, dt, ground_level);
+        // Additional gravity or environmental forces can be applied here
+        // figure.apply_force(sf::Vector2f(0.0f, customGravityForce), figure.points[0].pos, figure.get_radius() * 2.0f);
+
+        // Apply wind or other environmental forces
+        // sf::Vector2f environmentalForce = calculateEnvironmentalForces();
+        // figure.apply_force(environmentalForce, figure.points[0].pos, figure.get_radius() * 2.0f);
     }
 
-    // 🎮 STEP 2: Apply intentional control system on top of stable base
+    // STEP 2: Update ground contact detection and response
+    // This handles foot-ground interactions and collision response for all body parts
+    figure.updateGroundContact(this->ID, dt, ground_level);
+
+    // STEP 3: Determine movement input and execute physics-driven stepping
+    bool leftPressed = false;
+    bool rightPressed = false;
+    bool upPressed = false;
+
+    // Extract movement input from control systems
     if (useAdvancedControls && bodyControlSystem)
     {
-        // 🎮 ADVANCED CONTROL SYSTEM MODE
-        // Apply coordinated forces that respect the stability foundation
+        // Advanced control system input handling
+        InputManager &inputMgr = bodyControlSystem->getInputManager();
+        leftPressed = inputMgr.isHeld(BUTTON_ACTION::MOVE_LEFT);
+        rightPressed = inputMgr.isHeld(BUTTON_ACTION::MOVE_RIGHT);
+        upPressed = inputMgr.isHeld(BUTTON_ACTION::MOVE_UP);
+
+        // Update the body control system itself
         bodyControlSystem->update(dt);
         bodyControlSystem->applyControls(figure, ID, dt);
-
-        // CRITICAL FIX: Bridge advanced control input to basic locomotion
-        // Convert WASD from advanced controls into basic movement for locomotion
-        InputManager &inputMgr = bodyControlSystem->getInputManager();
-
-        MOVE_TYPE locomotionInput = MOVE_TYPE::NONE;
-
-        bool left = inputMgr.isHeld(BUTTON_ACTION::MOVE_LEFT);
-        bool right = inputMgr.isHeld(BUTTON_ACTION::MOVE_RIGHT);
-        bool up = inputMgr.isHeld(BUTTON_ACTION::MOVE_UP);
-
-        if (left && up)
-            locomotionInput = MOVE_TYPE::UP_LEFT;
-        else if (right && up)
-            locomotionInput = MOVE_TYPE::UP_RIGHT;
-        else if (left)
-            locomotionInput = MOVE_TYPE::LEFT;
-        else if (right)
-            locomotionInput = MOVE_TYPE::RIGHT;
-        else if (up)
-            locomotionInput = MOVE_TYPE::UP;
-
-        input = locomotionInput; // Set for simple controls to use
-
-        // Apply basic movement forces for locomotion
-        updateSimpleControls(dt);
     }
     else
     {
-        // 🎯 SIMPLE CONTROL MODE (Legacy)
-        updateSimpleControls(dt);
+        // Simple control system input handling
+        leftPressed = (input == MOVE_TYPE::LEFT || input == MOVE_TYPE::UP_LEFT);
+        rightPressed = (input == MOVE_TYPE::RIGHT || input == MOVE_TYPE::UP_RIGHT);
+        upPressed = (input == MOVE_TYPE::UP || input == MOVE_TYPE::UP_LEFT || input == MOVE_TYPE::UP_RIGHT);
     }
 
-    // 🔬 STEP 3: Physics integration (after all forces applied)
+    // STEP 4: Execute physics-driven stepping when on ground
+    bool isOnGround = this->is_onGround();
+
+    if (isOnGround && (leftPressed || rightPressed))
+    {
+        // Determine stepping pattern - alternate feet for realistic walking
+        static float stepTimer = 0.0f;
+        static bool useLeftFoot = true;
+        static int lastMoveDirection = 0; // -1 left, 0 none, 1 right
+
+        stepTimer += dt;
+
+        // Determine current movement direction
+        int currentMoveDirection = 0;
+        if (leftPressed && !rightPressed)
+            currentMoveDirection = -1;
+        else if (rightPressed && !leftPressed)
+            currentMoveDirection = 1;
+
+        // Switch stepping foot based on movement direction change or time
+        bool directionChanged = (currentMoveDirection != lastMoveDirection && currentMoveDirection != 0);
+        bool timeToSwitch = stepTimer > 0.6f; // Switch feet every 0.6 seconds
+
+        if (directionChanged || timeToSwitch)
+        {
+            useLeftFoot = !useLeftFoot;
+            stepTimer = 0.0f;
+        }
+
+        lastMoveDirection = currentMoveDirection;
+
+        // Execute physics step with the appropriate foot
+        BODY_PART stepping_foot = useLeftFoot ? BODY_PART::FOOT_L : BODY_PART::FOOT_R;
+        figure.executePhysicsStep(this->ID, dt, stepping_foot);
+
+        // Apply continuous lateral force for forward momentum
+        // This works in conjunction with the stepping system
+        sf::Vector2f lateral_force(0.0f, 0.0f);
+        float forceMultiplier = 0.8f; // PHYSICS FIX: Increased from 0.4f to compensate for reduced move_force
+
+        if (leftPressed && rightPressed)
+        {
+            // Both directions - minimal force, let physics stepping dominate
+            lateral_force = sf::Vector2f(0.0f, 0.0f);
+        }
+        else if (leftPressed)
+        {
+            lateral_force = sf::Vector2f(-move_force * forceMultiplier, 0.0f);
+        }
+        else if (rightPressed)
+        {
+            lateral_force = sf::Vector2f(move_force * forceMultiplier, 0.0f);
+        }
+
+        // Apply lateral force to center of mass for smooth movement
+        if (figure.points.size() > 0 && (lateral_force.x != 0.0f || lateral_force.y != 0.0f))
+        {
+            figure.apply_force(lateral_force, figure.points[0].pos, figure.get_radius() * 1.5f, dt);
+        }
+
+        // Update walking animation state
+        if (!isWalking)
+        {
+            startWalking();
+        }
+
+        // Set walking direction for animation system
+        if (leftPressed && !rightPressed)
+        {
+            setWalkDirection(-1.0f);
+        }
+        else if (rightPressed && !leftPressed)
+        {
+            setWalkDirection(1.0f);
+        }
+    }
+    else
+    {
+        // No movement input - stop walking animation
+        if (isWalking)
+        {
+            stopWalking();
+        }
+
+        // Apply air resistance when not moving
+        if (!isOnGround || (!leftPressed && !rightPressed))
+        {
+            float dampingFactor = std::exp(-air_drag * dt);
+            for (auto &p : figure.points)
+            {
+                if (p.locked)
+                    continue;
+                sf::Vector2f vel = p.pos - p.prev_pos;
+                vel.x *= dampingFactor;
+                p.prev_pos = p.pos - vel;
+            }
+        }
+    }
+
+    // STEP 5: Handle jumping with physics-driven mechanics
+    if (upPressed && (isOnGround || coyoteTimer > 0.f))
+    {
+        // Use the existing jump system which is already well-tuned
+        request_jump();
+    }
+
+    // STEP 6: Apply dynamic balancing to maintain character stability
+    // This is the core system that keeps the character upright and stable
+    // figure.applyDynamicBalancing(this->ID, dt); // Disabled for stability testing
+
+    // STEP 7: Apply enhanced postural stability (foundational system)
+    // This provides the unconscious balance reflexes that make the character feel natural
+    // if (gangBeastsPhysicsEnabled && figure.hasGangBeastsSettings())
+    // {
+    //     // Use Gang Beasts enhanced stability with reaction delays and overcompensation
+    //     figure.apply_enhanced_postural_stability(this->ID, dt, ground_level);
+    // }
+    // else
+    // {
+    // Fall back to original postural stability system
+    figure.apply_postural_stability(this->ID, dt, ground_level);
+    // }
+
+    // STEP 8: Update movement animations that complement physics-driven motion
+    if (isWalking)
+    {
+        updateWalkingAnimation(dt);
+    }
+    if (isWaving)
+    {
+        updateWavingAnimation(dt);
+    }
+
+    // STEP 9: Update state tracking and timers
+    // Update coyote timer for jump mechanics
+    if (coyoteTimer > 0.f)
+    {
+        coyoteTimer -= dt;
+    }
+
+    // Update ground state detection based on physics results
+    bool newGroundState = false;
+    if (figure.points.size() > 0)
+    {
+        // Check if any foot/ankle is near ground level
+        for (const auto &p : figure.points)
+        {
+            if (p.id == this->ID &&
+                (p.body_part == BODY_PART::FOOT_L || p.body_part == BODY_PART::FOOT_R ||
+                 p.body_part == BODY_PART::ANKLE_L || p.body_part == BODY_PART::ANKLE_R))
+            {
+                float groundThreshold = 25.0f;
+                if (p.pos.y >= ground_level - groundThreshold)
+                {
+                    newGroundState = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Smooth ground state transitions
+    if (newGroundState && !onGround)
+    {
+        // Just landed
+        set_onGround(true);
+    }
+    else if (!newGroundState && onGround)
+    {
+        // Just left ground
+        onGround = false;
+        coyoteTimer = 0.12f; // Grace period for jumping
+    }
+
+    // STEP 10: Advanced physics integration - final step
+    // This integrates all applied forces and resolves constraints
     updatePhysics(dt);
 
-    // 🚶 STEP 4: Update movement animations
-    if (isWalking)
-        updateWalkingAnimation(dt);
-    if (isWaving)
-        updateWavingAnimation(dt);
+    // STEP 11: Bridge to other systems for compatibility
+    // Convert current movement state to simple input for other systems
+    if (useAdvancedControls && bodyControlSystem)
+    {
+        MOVE_TYPE locomotionInput = MOVE_TYPE::NONE;
+
+        if (leftPressed && upPressed)
+            locomotionInput = MOVE_TYPE::UP_LEFT;
+        else if (rightPressed && upPressed)
+            locomotionInput = MOVE_TYPE::UP_RIGHT;
+        else if (leftPressed)
+            locomotionInput = MOVE_TYPE::LEFT;
+        else if (rightPressed)
+            locomotionInput = MOVE_TYPE::RIGHT;
+        else if (upPressed)
+            locomotionInput = MOVE_TYPE::UP;
+
+        input = locomotionInput; // Update for other systems
+    }
+
+    // Update movement state tracking
+    int current_move_sign = 0;
+    if (leftPressed && !rightPressed)
+        current_move_sign = -1;
+    else if (rightPressed && !leftPressed)
+        current_move_sign = 1;
+
+    last_move_sign = current_move_sign;
+    last_input = input;
 }
 
 void Player::updateSimpleControls(float dt)
@@ -723,14 +913,28 @@ void Player::updateWalkingAnimation(float dt)
 
     if (leftHip > 0 && rightHip > 0 && leftKnee > 0 && rightKnee > 0 && leftFoot > 0 && rightFoot > 0 && pelvis > 0)
     {
-        // CRITICAL FIX: Apply walking momentum like jumping (instantaneous impulse)
-        // Use the SAME technique that makes jumping work successfully
-        sf::Vector2f walkingImpulse = sf::Vector2f(walkDirection * walkForwardSpeed, 0.0f);
-
-        // Apply to center of mass (points[0]) with dt=1.0f for instantaneous impulse, like jumping
+        // Apply a small walking impulse ONLY at the start of the walk cycle to give
+        // initial forward momentum. Previously we applied an instantaneous impulse
+        // every frame which accumulated and caused large overshoot when holding
+        // movement keys. Keep jump behavior unchanged (jump impulses are event-driven).
         if (figure.points.size() > 0)
         {
-            figure.apply_force(walkingImpulse, figure.points[0].pos, figure.get_radius() * 1.5f, 1.0f);
+            // If we're on the first frame of the walking cycle, apply a reduced impulse.
+            // walkTimer is reset to 0.0f in startWalking(), so use a small window of dt
+            // to detect the first frame.
+            if (walkTimer <= dt * 1.5f)
+            {
+                float impulseScale = 0.15f; // PHYSICS FIX: Further reduced from 0.35f to prevent overshoot
+                sf::Vector2f walkingImpulse = sf::Vector2f(walkDirection * walkForwardSpeed * impulseScale, 0.0f);
+                figure.apply_force(walkingImpulse, figure.points[0].pos, figure.get_radius() * 1.5f, 1.0f);
+            }
+            else
+            {
+                // Otherwise apply a gentle continuous nudge as a force (not impulse)
+                float continuousScale = 0.08f; // PHYSICS FIX: Reduced from 0.18f to prevent accumulation
+                sf::Vector2f continuousForce = sf::Vector2f(walkDirection * walkForwardSpeed * continuousScale * dt, 0.0f);
+                figure.apply_force(continuousForce, figure.points[0].pos, figure.get_radius() * 1.5f);
+            }
         }
 
         // Get current positions
@@ -754,8 +958,9 @@ void Player::updateWalkingAnimation(float dt)
                                                      );
 
         // Apply gentle walking targets (work WITH stability system)
-        figure.set_part_target(ID, BODY_PART::FOOT_L, leftFootTarget, 150.0f, 20.0f);  // Increased strength
-        figure.set_part_target(ID, BODY_PART::FOOT_R, rightFootTarget, 150.0f, 20.0f); // Increased strength
+        // PHYSICS FIX: Reduced PD gains from 150.0f/20.0f to prevent instability
+        figure.set_part_target(ID, BODY_PART::FOOT_L, leftFootTarget, 25.0f, 3.0f);  // Much gentler
+        figure.set_part_target(ID, BODY_PART::FOOT_R, rightFootTarget, 25.0f, 3.0f); // Much gentler
 
         // Slight knee bend during walk cycle
         figure.animate_skeleton_spring(ID, BODY_PART::HIP_L, BODY_PART::KNEE_L,
@@ -798,10 +1003,10 @@ void Player::updateWavingAnimation(float dt)
         sf::Vector2f baseHandPos = shoulderPos + sf::Vector2f(70.0f, -40.0f); // Further out from shoulder
         sf::Vector2f handTarget = baseHandPos + offset;
 
-        // CRITICAL FIX: Use much gentler forces - the 800.0f was causing the player to fly!
+        // PHYSICS FIX: Much gentler waving forces to prevent flight
         // Apply force directly to the hand particle but with reasonable magnitude
         sf::Vector2f handCurrentPos = figure.points[rightHand].pos;
-        sf::Vector2f handForce = (handTarget - handCurrentPos) * 50.0f; // Much gentler force
+        sf::Vector2f handForce = (handTarget - handCurrentPos) * 8.0f; // MAJOR FIX: Reduced from 50.0f
 
         // Apply as impulse (dt = 1.0f) to overcome constraints but not launch the player
         figure.apply_force(handForce, handCurrentPos, 15.0f, 1.0f);
@@ -811,7 +1016,7 @@ void Player::updateWavingAnimation(float dt)
         {
             sf::Vector2f wristTarget = shoulderPos + (handTarget - shoulderPos) * 0.75f;
             sf::Vector2f wristCurrentPos = figure.points[rightWrist].pos;
-            sf::Vector2f wristForce = (wristTarget - wristCurrentPos) * 40.0f; // Reduced from 600.0f
+            sf::Vector2f wristForce = (wristTarget - wristCurrentPos) * 6.0f; // MAJOR FIX: Reduced from 40.0f
             figure.apply_force(wristForce, wristCurrentPos, 12.0f, 1.0f);
         }
 
@@ -819,7 +1024,7 @@ void Player::updateWavingAnimation(float dt)
         {
             sf::Vector2f elbowTarget = shoulderPos + (handTarget - shoulderPos) * 0.5f;
             sf::Vector2f elbowCurrentPos = figure.points[rightElbow].pos;
-            sf::Vector2f elbowForce = (elbowTarget - elbowCurrentPos) * 30.0f; // Reduced from 400.0f
+            sf::Vector2f elbowForce = (elbowTarget - elbowCurrentPos) * 4.0f; // MAJOR FIX: Reduced from 30.0f
             figure.apply_force(elbowForce, elbowCurrentPos, 10.0f, 1.0f);
         }
 
@@ -864,8 +1069,12 @@ bool Player::loadGangBeastsSettings(const std::string &settingsPath)
 
     bool success = settingsParser->loadSettings(settingsPath);
 
-    // Apply settings to physics system
-    if (success && gangBeastsPhysicsEnabled)
+    // Always apply settings (loaded or defaults) to the Jelly so it has a valid
+    // pointer to physics tuning data. Previously we only applied settings when
+    // loadSettings returned true, which left the Jelly with a null pointer when
+    // the file was missing (defaults were still applied in the parser), causing
+    // runtime null-dereferences in walking code.
+    if (gangBeastsPhysicsEnabled)
     {
         const auto &settings = settingsParser->getSettings();
         figure.setGangBeastsSettings(&settings);
