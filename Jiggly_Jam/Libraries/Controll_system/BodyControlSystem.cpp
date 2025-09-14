@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <iostream>
 
-// Helper function to get body part name for debugging
 std::string getBodyPartName(BODY_PART part)
 {
     switch (part)
@@ -37,15 +36,10 @@ std::string getBodyPartName(BODY_PART part)
 }
 #include <sstream>
 
-// =============================================================================
-// BodyControlSystem Implementation
-// =============================================================================
-
 BodyControlSystem::BodyControlSystem(sf::RenderWindow *window)
 {
     inputManager = std::make_unique<InputManager>(window);
 
-    // Create all control schemes
     schemes.push_back(std::make_unique<SurgeonControlScheme>());
     schemes.push_back(std::make_unique<ChaosControlScheme>());
     schemes.push_back(std::make_unique<LearnControlScheme>());
@@ -64,7 +58,6 @@ void BodyControlSystem::update(float dt)
 {
     inputManager->update();
 
-    // Handle scheme switching
     if (inputManager->justPressed(BUTTON_ACTION::TOGGLE_SCHEME) && schemeToggleCooldown <= 0.0f)
     {
         nextScheme();
@@ -82,7 +75,6 @@ void BodyControlSystem::update(float dt)
         debugMode = !debugMode;
     }
 
-    // Update current scheme
     if (currentSchemeIndex < schemes.size())
     {
         schemes[currentSchemeIndex]->update(*inputManager, dt);
@@ -102,14 +94,12 @@ void BodyControlSystem::draw(sf::RenderWindow &window)
     if (!debugMode)
         return;
 
-    // Draw current scheme info
     sf::Vector2f debugPos = {10.0f, 10.0f};
 
     if (currentSchemeIndex < schemes.size())
     {
         auto *currentScheme = schemes[currentSchemeIndex].get();
 
-        // Scheme name and description (would need text rendering)
         // For now, just draw debug info
         currentScheme->drawDebugInfo(window, {debugPos.x, debugPos.y + 40.0f});
     }
@@ -144,9 +134,6 @@ ControlSchemeBase *BodyControlSystem::getCurrentScheme() const
     return nullptr;
 }
 
-// =============================================================================
-// ControlSchemeBase Implementation
-// =============================================================================
 
 void ControlSchemeBase::initializeBodyPart(BODY_PART part, float maxStamina, float drainRate, float recoveryRate)
 {
@@ -182,7 +169,6 @@ void ControlSchemeBase::updateStamina(BODY_PART part, bool isActive, float dt)
 void ControlSchemeBase::applyForceToBodyPart(Jelly &body, uint64_t playerId, BODY_PART part, sf::Vector2f targetPos, float strength)
 {
     // STABILITY-AWARE FORCE APPLICATION:
-    // Apply intentional forces that work WITH postural stability, not against it
 
     auto it = bodyControls.find(part);
     if (it != bodyControls.end())
@@ -216,7 +202,6 @@ void ControlSchemeBase::applyForceToBodyPart(Jelly &body, uint64_t playerId, BOD
         float adaptiveKp = finalStrength * baseKp * stabilityAwareness;
         float adaptiveKd = finalStrength * baseKd * stabilityAwareness;
 
-        // Use stability-coordinated PD control
         body.set_part_target(playerId, part,
                              targetPos,  // Actual target position
                              adaptiveKp, // Stability-aware position gain
@@ -228,8 +213,6 @@ void ControlSchemeBase::applyForceToBodyPart(Jelly &body, uint64_t playerId, BOD
 float ControlSchemeBase::getStabilityAwareness(BODY_PART part)
 {
     // Return multiplier for stability-critical vs. mobility-focused parts
-    // Lower values = more conservative forces (respects stability more)
-    // Higher values = more aggressive forces (for expressive movement)
 
     switch (part)
     {
@@ -285,7 +268,6 @@ float ControlSchemeBase::assessStabilityMetric(Jelly &body, uint64_t playerId)
 
     float stabilityScore = 1.0f; // Start with perfect stability
 
-    // Factor 1: Center of mass position relative to feet
     sf::Vector2f centerOfMass{0.f, 0.f};
     sf::Vector2f leftFoot{0.f, 0.f};
     sf::Vector2f rightFoot{0.f, 0.f};
@@ -331,7 +313,6 @@ float ControlSchemeBase::assessStabilityMetric(Jelly &body, uint64_t playerId)
             }
         }
 
-        // Factor 2: Body velocity (stability decreases with excessive motion)
         float totalVelocity = 0.f;
         int pointCount = 0;
 
@@ -363,7 +344,6 @@ float ControlSchemeBase::assessStabilityMetric(Jelly &body, uint64_t playerId)
             sf::Vector2f midPos = body.points[spineMid].pos;
             sf::Vector2f lowPos = body.points[spineLow].pos;
 
-            // Calculate spine curvature
             float spineHeight = upPos.y - lowPos.y;
             float midDeviation = std::abs(midPos.x - (upPos.x + lowPos.x) * 0.5f);
 
@@ -408,13 +388,9 @@ void ControlSchemeBase::drawStaminaBar(sf::RenderWindow &window, sf::Vector2f po
     window.draw(bar);
 }
 
-// =============================================================================
-// SurgeonControlScheme Implementation
-// =============================================================================
 
 SurgeonControlScheme::SurgeonControlScheme()
 {
-    // Initialize all body parts with individual stamina
     initializeBodyPart(BODY_PART::SHO_L, 80.0f, 12.0f, 20.0f);   // Left shoulder
     initializeBodyPart(BODY_PART::ELB_L, 60.0f, 15.0f, 25.0f);   // Left elbow
     initializeBodyPart(BODY_PART::WRIST_L, 40.0f, 20.0f, 30.0f); // Left wrist
@@ -457,7 +433,6 @@ SurgeonControlScheme::SurgeonControlScheme()
 
 void SurgeonControlScheme::update(InputManager &input, float dt)
 {
-    // Update each limb control
     for (const auto &mapping : limbMappings)
     {
         bool extendPressed = input.isHeld(mapping.extendAction);
@@ -497,7 +472,6 @@ void SurgeonControlScheme::applyControls(Jelly &body, uint64_t playerId, float d
     {
         if (control.isActive && control.intensity > 0.0f)
         {
-            // Get current part position as reference
             int partIndex = body.find_part_index(playerId, part);
             if (partIndex > 0)
             {
@@ -533,7 +507,6 @@ std::string SurgeonControlScheme::getControlDescription() const
 
 void SurgeonControlScheme::drawDebugInfo(sf::RenderWindow &window, sf::Vector2f position)
 {
-    // Draw stamina bars for each body part
     float yOffset = 0.0f;
     for (const auto &[part, control] : bodyControls)
     {
@@ -562,13 +535,9 @@ float SurgeonControlScheme::getStamina(BODY_PART part) const
     return it != bodyControls.end() ? it->second.stamina : 0.0f;
 }
 
-// =============================================================================
-// ChaosControlScheme Implementation (simplified for now)
-// =============================================================================
 
 ChaosControlScheme::ChaosControlScheme()
 {
-    // Initialize basic controls - will expand this
     initializeBodyPart(BODY_PART::SHO_L, 100.0f, 10.0f, 20.0f);
     initializeBodyPart(BODY_PART::SHO_R, 100.0f, 10.0f, 20.0f);
     initializeBodyPart(BODY_PART::HIP_L, 100.0f, 10.0f, 20.0f);
@@ -611,9 +580,6 @@ bool ChaosControlScheme::isControlActive(BODY_PART part) const { return false; }
 float ChaosControlScheme::getControlIntensity(BODY_PART part) const { return 0.0f; }
 float ChaosControlScheme::getStamina(BODY_PART part) const { return 100.0f; }
 
-// =============================================================================
-// LearnControlScheme Implementation (simplified for now)
-// =============================================================================
 
 LearnControlScheme::LearnControlScheme()
 {
@@ -700,11 +666,9 @@ void LearnControlScheme::applyControls(Jelly &body, uint64_t playerId, float dt)
         {
             sf::Vector2f currentPos = body.points[partIndex].pos;
 
-            // Use much smaller, gentler movements that cooperate with stability
             sf::Vector2f targetOffset = control.forceDirection * 15.0f; // Much reduced for stability cooperation
             sf::Vector2f targetPos = currentPos + targetOffset;
 
-            // Use very reduced intensity to work WITH stability, not against it
             applyForceToBodyPart(body, playerId, activePart, targetPos, control.intensity * 0.2f); // Much lower intensity
         }
     }

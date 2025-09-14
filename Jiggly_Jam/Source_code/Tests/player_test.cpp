@@ -24,7 +24,6 @@ int main()
     bool p1_jump_prev = false;
     bool p2_jump_prev = false;
 
-    // event-driven key state tracking (avoid flaky realtime polling)
     bool p1_left_state = false, p1_right_state = false, p1_jump_state = false;
     bool p2_left_state = false, p2_right_state = false, p2_jump_state = false;
 
@@ -170,7 +169,6 @@ int main()
         window.clear(sf::Color(40, 40, 50));
         window.draw(ground);
 
-        // draw players by asking for their figure (this returns a copy; acceptable for a test)
         p1.Figure().draw(window);
         p2.Figure().draw(window);
 

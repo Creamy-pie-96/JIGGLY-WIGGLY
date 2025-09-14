@@ -475,6 +475,10 @@ void SettingsParser::parseDebugSettings(std::ifstream &file)
             {
                 settings.debug.show_spring_stress = parseBool(value, false);
             }
+            else if (key == "show_mass_distribution")
+            {
+                settings.debug.show_mass_distribution = parseBool(value, false);
+            }
             else if (key == "log_physics_events")
             {
                 settings.debug.log_physics_events = parseBool(value, false);
@@ -598,7 +602,6 @@ void SettingsParser::parseSpringAnimationSystem(std::ifstream &file)
                 }
                 settings.advanced_spring_system.spring_animation_system.keyframe_interpolation = value;
             }
-            // Priority system parsing (simplified for now)
             else if (key == "walking_priority")
             {
                 settings.advanced_spring_system.spring_animation_system.priority_system.walking_priority = parseInt(value, 3);
@@ -731,7 +734,6 @@ void SettingsParser::parseAdaptivePhysics(std::ifstream &file)
     }
 }
 
-// Helper functions
 std::string SettingsParser::trim(const std::string &str)
 {
     size_t start = str.find_first_not_of(" \t\r\n");
@@ -830,7 +832,6 @@ bool SettingsParser::reloadSettings()
 
 void SettingsParser::applyDefaultSettings()
 {
-    // Apply all the default values from the struct initializers
     // This ensures the system works even without a settings file
 
     settings = GangBeastsSettings::GangBeastsPhysicsSettings();

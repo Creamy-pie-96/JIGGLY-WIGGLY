@@ -11,7 +11,6 @@ private:
     sf::Vector2f origin{100.f, 100.f};
     float height;
 
-    // Shape-based human figure (like in human.cpp)
     sf::RectangleShape torso;
     sf::RectangleShape neck;
     sf::CircleShape head;
@@ -24,7 +23,6 @@ private:
     sf::RectangleShape rightFoot;
     sf::RectangleShape leftFoot;
 
-    // Helper function to sample points around a circle
     std::vector<sf::Vector2f> sampleCircle(const sf::CircleShape &circle, int numPoints) const
     {
         std::vector<sf::Vector2f> points;
@@ -40,7 +38,6 @@ private:
         return points;
     }
 
-    // Helper function to sample points around a rectangle
     std::vector<sf::Vector2f> sampleRectangle(const sf::RectangleShape &rect, int pointsPerSide) const
     {
         std::vector<sf::Vector2f> points;
@@ -49,15 +46,13 @@ private:
         sf::Vector2f origin = rect.getOrigin();
         float rotation = rect.getRotation() * M_PI / 180.f;
 
-        // Calculate the four corners relative to origin
         std::vector<sf::Vector2f> corners = {
-            {-origin.x, -origin.y},                 // Top-left
-            {size.x - origin.x, -origin.y},         // Top-right
-            {size.x - origin.x, size.y - origin.y}, // Bottom-right
-            {-origin.x, size.y - origin.y}          // Bottom-left
+            {-origin.x, -origin.y},
+            {size.x - origin.x, -origin.y},
+            {size.x - origin.x, size.y - origin.y},
+            {-origin.x, size.y - origin.y}
         };
 
-        // Apply rotation and translation
         for (auto &corner : corners)
         {
             float x = corner.x * std::cos(rotation) - corner.y * std::sin(rotation);
@@ -65,7 +60,6 @@ private:
             corner = sf::Vector2f(x + pos.x, y + pos.y);
         }
 
-        // Sample points along each edge
         for (int edge = 0; edge < 4; ++edge)
         {
             sf::Vector2f start = corners[edge];
@@ -81,10 +75,8 @@ private:
         return points;
     }
 
-    // Helper function to determine which body part a point belongs to
     BODY_PART classifyPoint(const sf::Vector2f &point) const
     {
-        // Check distance to canonical joint positions
         struct JointInfo
         {
             sf::Vector2f pos;
@@ -93,7 +85,7 @@ private:
         };
 
         std::vector<JointInfo> joints = {
-            {head.getPosition() + sf::Vector2f(head.getRadius(), head.getRadius()), BODY_PART::HEAD, head.getRadius() * 0.8f},
+            {head.getPosition() + sf::Vector2f(head.getRadius(), head.getRadius()), BODY_PART::HEAD, head.getRadius() * 1.f}, // Increased radius for head
             {neck.getPosition() + neck.getSize() * 0.5f, BODY_PART::NECK, 10.f * s},
             {sf::Vector2f(neck.getPosition().x + neck.getSize().x * 0.8f, neck.getPosition().y + neck.getSize().y), BODY_PART::CLAV_R, 8.f * s},
             {sf::Vector2f(neck.getPosition().x + neck.getSize().x * 0.2f, neck.getPosition().y + neck.getSize().y), BODY_PART::CLAV_L, 8.f * s},
@@ -111,10 +103,9 @@ private:
             {sf::Vector2f(leftLeg.getPosition().x, leftLeg.getPosition().y + leftLeg.getSize().y * 0.6f), BODY_PART::KNEE_L, 10.f * s},
             {sf::Vector2f(rightLeg.getPosition().x, rightLeg.getPosition().y + rightLeg.getSize().y * 0.9f), BODY_PART::ANKLE_R, 8.f * s},
             {sf::Vector2f(leftLeg.getPosition().x, leftLeg.getPosition().y + leftLeg.getSize().y * 0.9f), BODY_PART::ANKLE_L, 8.f * s},
-            {rightFoot.getPosition() + rightFoot.getSize() * 0.5f, BODY_PART::FOOT_R, 12.f * s},
-            {leftFoot.getPosition() + leftFoot.getSize() * 0.5f, BODY_PART::FOOT_L, 12.f * s}};
+            {rightFoot.getPosition() + rightFoot.getSize() * 0.5f, BODY_PART::FOOT_R, 10.f * s},
+            {leftFoot.getPosition() + leftFoot.getSize() * 0.5f, BODY_PART::FOOT_L, 10.f * s}};
 
-        // Find the closest joint
         float minDist = 1e9f;
         BODY_PART closestPart = BODY_PART::NONE;
 
@@ -131,12 +122,10 @@ private:
         return closestPart;
     }
 
-    // Main helper function to generate outline from shape-based figure
     void generateOutlineFromShapes()
     {
         std::vector<sf::Vector2f> allPoints;
 
-        // Sample points from each body part
         auto headPoints = sampleCircle(head, 8);
         auto neckPoints = sampleRectangle(neck, 3);
         auto torsoPoints = sampleRectangle(torso, 6);
@@ -149,7 +138,6 @@ private:
         auto rightFootPoints = sampleRectangle(rightFoot, 3);
         auto leftFootPoints = sampleRectangle(leftFoot, 3);
 
-        // Combine all points
         allPoints.insert(allPoints.end(), headPoints.begin(), headPoints.end());
         allPoints.insert(allPoints.end(), neckPoints.begin(), neckPoints.end());
         allPoints.insert(allPoints.end(), torsoPoints.begin(), torsoPoints.end());
@@ -162,20 +150,17 @@ private:
         allPoints.insert(allPoints.end(), rightFootPoints.begin(), rightFootPoints.end());
         allPoints.insert(allPoints.end(), leftFootPoints.begin(), leftFootPoints.end());
 
-        // Compute the convex hull or use a simpler approach: sort by angle from center
         sf::Vector2f center{0.f, 0.f};
         for (const auto &p : allPoints)
             center += p;
         center /= (float)allPoints.size();
 
-        // Sort points by angle around center to create a proper outline
         std::sort(allPoints.begin(), allPoints.end(), [center](const sf::Vector2f &a, const sf::Vector2f &b)
                   {
             float angleA = std::atan2(a.y - center.y, a.x - center.x);
             float angleB = std::atan2(b.y - center.y, b.x - center.x);
             return angleA < angleB; });
 
-        // Create outline with body part classification
         outline.clear();
         for (const auto &point : allPoints)
         {
@@ -183,13 +168,11 @@ private:
             outline.push_back({point, part});
         }
 
-        // Generate interior skeleton joints
         generateInteriorJoints();
     }
 
     void generateInteriorJoints()
     {
-        // Calculate interior spine positions based on torso
         sf::Vector2f torsoCenter = torso.getPosition() + torso.getSize() * 0.5f;
         sf::Vector2f neckBottom = neck.getPosition() + sf::Vector2f(neck.getSize().x * 0.5f, neck.getSize().y);
 
@@ -200,7 +183,6 @@ private:
             {sf::Vector2f(torsoCenter.x, torso.getPosition().y + torso.getSize().y), BODY_PART::PELVIS}};
     }
 
-    // Key skeleton landmarks (these will be placed strategically in the outline)
     sf::Vector2f HEAD, NECK, SPINE_UP, SPINE_MID, SPINE_LOW, PELVIS;
     sf::Vector2f CLAV_R, CLAV_L;
     sf::Vector2f SHO_R, SHO_L;
@@ -220,7 +202,6 @@ public:
     {
         s = h / 175.f; // Scale factor based on height (matching human.cpp)
 
-        // Create shape-based human figure (similar to human.cpp)
         float headRadius = 15.f * s;
         float limbWidth = 8.f * s;
         float torsoWidth = 25.f * s;
@@ -228,42 +209,35 @@ public:
         float limbLength = 50.f * s;
         float handFootSize = 10.f * s;
 
-        // Head and Neck
         head.setRadius(headRadius);
         head.setPosition(origin.x - headRadius, origin.y - torsoHeight / 2 - headRadius * 2);
 
         neck.setSize(sf::Vector2f(limbWidth, 10.f * s));
         neck.setPosition(head.getPosition().x + headRadius - limbWidth / 2, head.getPosition().y + headRadius * 2);
 
-        // Torso
         torso.setSize(sf::Vector2f(torsoWidth, torsoHeight));
         torso.setPosition(neck.getPosition().x + limbWidth / 2 - torsoWidth / 2, neck.getPosition().y + neck.getSize().y);
 
-        // Arms (slightly rotated outward to form a 'V' shape)
         rightArm.setSize(sf::Vector2f(limbWidth, limbLength));
         rightArm.setOrigin(limbWidth / 2, 0);
         rightArm.setPosition(torso.getPosition().x + torsoWidth, torso.getPosition().y);
-        rightArm.setRotation(-15); // Rotated slightly outward
+        rightArm.setRotation(-15);
 
         leftArm.setSize(sf::Vector2f(limbWidth, limbLength));
         leftArm.setOrigin(limbWidth / 2, 0);
         leftArm.setPosition(torso.getPosition().x, torso.getPosition().y);
-        leftArm.setRotation(15); // Rotated slightly outward
+        leftArm.setRotation(15);
 
-        // Hands
         rightHand.setSize(sf::Vector2f(handFootSize, handFootSize));
         rightHand.setOrigin(handFootSize / 2, 0);
-        // Position hands relative to the end of the rotated arms
         sf::FloatRect rightArmBounds = rightArm.getGlobalBounds();
         rightHand.setPosition(rightArmBounds.left + rightArmBounds.width / 2, rightArmBounds.top + rightArmBounds.height);
 
         leftHand.setSize(sf::Vector2f(handFootSize, handFootSize));
         leftHand.setOrigin(handFootSize / 2, 0);
-        // Position hands relative to the end of the rotated arms
         sf::FloatRect leftArmBounds = leftArm.getGlobalBounds();
         leftHand.setPosition(leftArmBounds.left + leftArmBounds.width / 2, leftArmBounds.top + leftArmBounds.height);
 
-        // Legs (straight)
         rightLeg.setSize(sf::Vector2f(limbWidth, limbLength));
         rightLeg.setOrigin(limbWidth / 2, 0);
         rightLeg.setPosition(torso.getPosition().x + torsoWidth, torso.getPosition().y + torsoHeight);
@@ -283,7 +257,17 @@ public:
         leftFoot.setOrigin(handFootSize * 0.75f, 0);
         leftFoot.setPosition(leftLeg.getPosition().x, leftLeg.getPosition().y + limbLength);
 
-        // Generate outline and interior joints from the shapes
+        // DEBUG: Print key positions for debugging
+        sf::Vector2f headCenter = head.getPosition() + sf::Vector2f(head.getRadius(), head.getRadius());
+        sf::Vector2f leftFootCenter = leftFoot.getPosition() + leftFoot.getSize() * 0.5f;
+        sf::Vector2f rightFootCenter = rightFoot.getPosition() + rightFoot.getSize() * 0.5f;
+
+        std::cout << "DEBUG SHAPE POSITIONS:" << std::endl;
+        std::cout << "  HEAD center: (" << headCenter.x << ", " << headCenter.y << ") radius: " << head.getRadius() * 1.2f << std::endl;
+        std::cout << "  LEFT_FOOT center: (" << leftFootCenter.x << ", " << leftFootCenter.y << ") radius: " << 10.f * s << std::endl;
+        std::cout << "  RIGHT_FOOT center: (" << rightFootCenter.x << ", " << rightFootCenter.y << ") radius: " << 10.f * s << std::endl;
+        std::cout << "  Scale factor s: " << s << std::endl;
+
         generateOutlineFromShapes();
     }
     ~Human() = default;
@@ -295,7 +279,6 @@ void Player::create_figure()
     figure.clear();
     figure.create_filled_from_polygon(human_shape.outline, spacing, this->ID);
 
-    // Add interior skeleton joints manually
     for (const auto &joint : human_shape.interior_joints)
     {
         Point p;
@@ -308,56 +291,79 @@ void Player::create_figure()
         figure.points.push_back(p);
     }
 
-    // add skeleton springs (strong) and flesh-to-skeleton connections (soft)
     figure.add_skeleton_for_player(this->ID, 5.0f); // Strong skeleton for standing stability
 
-    // Set proper mass distribution for stability
     for (auto &p : figure.points)
     {
         if (p.id == this->ID)
         {
             switch (p.body_part)
             {
-            // Feet and lower legs get more mass for stability
+            // Feet and lower legs get much more mass for stability and grounding
             case BODY_PART::FOOT_L:
             case BODY_PART::FOOT_R:
-                p.mass = 2.5f; // Heavy feet for grounding
+                p.mass = 3.5f; // Much heavier feet for better grounding and stability
                 break;
             case BODY_PART::ANKLE_L:
             case BODY_PART::ANKLE_R:
-                p.mass = 2.0f;
+                p.mass = 2.8f; // Heavy ankles for low center of mass
                 break;
             case BODY_PART::KNEE_L:
             case BODY_PART::KNEE_R:
-                p.mass = 1.5f;
+                p.mass = 2.2f; // Heavy knees for leg stability
+                break;
+            case BODY_PART::HIP_L:
+            case BODY_PART::HIP_R:
+                p.mass = 2.0f; // Heavy hips for core stability
                 break;
 
-            // Torso gets more mass (body weight)
-            case BODY_PART::SPINE_MID:
+            // Lower torso heavy, upper torso lighter
             case BODY_PART::PELVIS:
-                p.mass = 1.8f;
+                p.mass = 2.5f; // Heavy pelvis for low center of mass
+                break;
+            case BODY_PART::SPINE_LOW:
+                p.mass = 2.0f; // Heavy lower spine
+                break;
+            case BODY_PART::SPINE_MID:
+                p.mass = 1.5f; // Moderate middle spine
                 break;
             case BODY_PART::SPINE_UP:
-            case BODY_PART::SPINE_LOW:
-                p.mass = 1.5f;
+                p.mass = 1.2f; // Lighter upper spine
                 break;
 
-            // Head moderate mass
+            // Head much lighter to reduce top-heavy instability
             case BODY_PART::HEAD:
-                p.mass = 1.3f;
+                p.mass = 0.8f; // Much lighter head to reduce torque and instability
+                break;
+            case BODY_PART::NECK:
+                p.mass = 0.9f; // Light neck
                 break;
 
-            // Arms lighter for mobility
-            case BODY_PART::HAND_L:
-            case BODY_PART::HAND_R:
+            // Arms and shoulders lighter for mobility
+            case BODY_PART::CLAV_L:
+            case BODY_PART::CLAV_R:
+                p.mass = 0.9f;
+                break;
+            case BODY_PART::SHO_L:
+            case BODY_PART::SHO_R:
+                p.mass = 1.0f;
+                break;
+            case BODY_PART::ELB_L:
+            case BODY_PART::ELB_R:
+                p.mass = 0.9f;
+                break;
             case BODY_PART::WRIST_L:
             case BODY_PART::WRIST_R:
-                p.mass = 0.8f;
+                p.mass = 0.7f;
+                break;
+            case BODY_PART::HAND_L:
+            case BODY_PART::HAND_R:
+                p.mass = 0.6f; // Very light hands
                 break;
 
-            // Default skeleton mass
+            // Flesh points very light
             case BODY_PART::NONE:
-                p.mass = 0.5f; // Flesh points lighter
+                p.mass = 0.3f; // Lighter flesh points
                 break;
             default:
                 p.mass = 1.0f; // Standard skeleton mass
@@ -371,7 +377,6 @@ void Player::spawn(sf::Vector2f pos)
     if (figure.points.empty())
         create_figure();
 
-    // place center and peripheral points relative to new center
     sf::Vector2f oldCenter = figure.points.size() ? figure.points[0].pos : sf::Vector2f{0.f, 0.f};
     sf::Vector2f center = pos;
     figure.points[0].pos = center;
@@ -382,6 +387,86 @@ void Player::spawn(sf::Vector2f pos)
         sf::Vector2f dir = figure.points[i].pos - oldCenter;
         figure.points[i].pos = center + dir;
         figure.points[i].prev_pos = figure.points[i].pos;
+    }
+
+    // STABILITY FIX: Enforce upright pose immediately after spawn
+    for (auto &p : figure.points)
+    {
+        if (p.id == this->ID && p.body_part != BODY_PART::NONE)
+        {
+            p.prev_pos = p.pos; // Zero velocity
+        }
+    }
+
+    int pelvis_idx = figure.find_part_index(ID, BODY_PART::PELVIS);
+    int spine_low_idx = figure.find_part_index(ID, BODY_PART::SPINE_LOW);
+    int spine_mid_idx = figure.find_part_index(ID, BODY_PART::SPINE_MID);
+    int spine_up_idx = figure.find_part_index(ID, BODY_PART::SPINE_UP);
+    int neck_idx = figure.find_part_index(ID, BODY_PART::NECK);
+    int head_idx = figure.find_part_index(ID, BODY_PART::HEAD);
+
+    // Align spine vertically from pelvis up
+    if (pelvis_idx >= 0 && head_idx >= 0)
+    {
+        sf::Vector2f pelvis_pos = figure.points[pelvis_idx].pos;
+
+        if (spine_low_idx >= 0)
+        {
+            figure.points[spine_low_idx].pos = pelvis_pos + sf::Vector2f(0, -15);
+            figure.points[spine_low_idx].prev_pos = figure.points[spine_low_idx].pos;
+        }
+        if (spine_mid_idx >= 0)
+        {
+            figure.points[spine_mid_idx].pos = pelvis_pos + sf::Vector2f(0, -30);
+            figure.points[spine_mid_idx].prev_pos = figure.points[spine_mid_idx].pos;
+        }
+        if (spine_up_idx >= 0)
+        {
+            figure.points[spine_up_idx].pos = pelvis_pos + sf::Vector2f(0, -45);
+            figure.points[spine_up_idx].prev_pos = figure.points[spine_up_idx].pos;
+        }
+        if (neck_idx >= 0)
+        {
+            figure.points[neck_idx].pos = pelvis_pos + sf::Vector2f(0, -60);
+            figure.points[neck_idx].prev_pos = figure.points[neck_idx].pos;
+        }
+        if (head_idx >= 0)
+        {
+            figure.points[head_idx].pos = pelvis_pos + sf::Vector2f(0, -75);
+            figure.points[head_idx].prev_pos = figure.points[head_idx].pos;
+        }
+    }
+
+    // CRITICAL: Ensure feet are properly positioned for stability
+    int foot_l_idx = figure.find_part_index(ID, BODY_PART::FOOT_L);
+    int foot_r_idx = figure.find_part_index(ID, BODY_PART::FOOT_R);
+    int ankle_l_idx = figure.find_part_index(ID, BODY_PART::ANKLE_L);
+    int ankle_r_idx = figure.find_part_index(ID, BODY_PART::ANKLE_R);
+
+    if (pelvis_idx >= 0)
+    {
+        sf::Vector2f pelvis_pos = figure.points[pelvis_idx].pos;
+
+        if (foot_l_idx >= 0)
+        {
+            figure.points[foot_l_idx].pos = pelvis_pos + sf::Vector2f(-20, 80);
+            figure.points[foot_l_idx].prev_pos = figure.points[foot_l_idx].pos;
+        }
+        if (foot_r_idx >= 0)
+        {
+            figure.points[foot_r_idx].pos = pelvis_pos + sf::Vector2f(20, 80);
+            figure.points[foot_r_idx].prev_pos = figure.points[foot_r_idx].pos;
+        }
+        if (ankle_l_idx >= 0)
+        {
+            figure.points[ankle_l_idx].pos = pelvis_pos + sf::Vector2f(-18, 65);
+            figure.points[ankle_l_idx].prev_pos = figure.points[ankle_l_idx].pos;
+        }
+        if (ankle_r_idx >= 0)
+        {
+            figure.points[ankle_r_idx].pos = pelvis_pos + sf::Vector2f(18, 65);
+            figure.points[ankle_r_idx].prev_pos = figure.points[ankle_r_idx].pos;
+        }
     }
 
     // reset any state
@@ -404,31 +489,34 @@ void Player::request_jump()
     // mark requested; handled immediately to apply impulse once
     if (onGround || coyoteTimer > 0.f)
     {
-        sf::Vector2f J = sf::Vector2f(0.f, -jump_force);
-        // instantaneous impulse: pass dt=1 so the jelly code treats J as full impulse
-        if (figure.points.size())
-            figure.apply_force(J, figure.points[0].pos, figure.get_radius() * 1.5f, 1.f);
+        // SIMPLIFIED JUMPING: Apply force only to center of mass for natural motion
+        sf::Vector2f jumpForce = sf::Vector2f(0.f, -jump_force);
+
+        if (figure.points.size() > 0)
+        {
+            // This prevents the twisted/bent shapes caused by conflicting forces
+            figure.apply_force(jumpForce, figure.points[0].pos, figure.get_radius() * 1.5f, 1.f);
+        }
+
         onGround = false;
         coyoteTimer = 0.f;
+
+        // No jump targets needed - let natural physics handle the motion
     }
 }
 
 void Player::update(float dt)
 {
-    // =====================================================================
     // ADVANCED PHYSICS-DRIVEN WALKING CYCLE SYSTEM
     // Complete replacement with sophisticated physics integration
-    // =====================================================================
 
     // STEP 1: Apply gravitational forces globally
     // The Jelly physics engine automatically handles gravity in update_verlet,
     // but we can apply additional global forces if needed for gameplay
     if (figure.points.size() > 0)
     {
-        // Additional gravity or environmental forces can be applied here
         // figure.apply_force(sf::Vector2f(0.0f, customGravityForce), figure.points[0].pos, figure.get_radius() * 2.0f);
 
-        // Apply wind or other environmental forces
         // sf::Vector2f environmentalForce = calculateEnvironmentalForces();
         // figure.apply_force(environmentalForce, figure.points[0].pos, figure.get_radius() * 2.0f);
     }
@@ -451,7 +539,6 @@ void Player::update(float dt)
         rightPressed = inputMgr.isHeld(BUTTON_ACTION::MOVE_RIGHT);
         upPressed = inputMgr.isHeld(BUTTON_ACTION::MOVE_UP);
 
-        // Update the body control system itself
         bodyControlSystem->update(dt);
         bodyControlSystem->applyControls(figure, ID, dt);
     }
@@ -498,10 +585,9 @@ void Player::update(float dt)
         BODY_PART stepping_foot = useLeftFoot ? BODY_PART::FOOT_L : BODY_PART::FOOT_R;
         figure.executePhysicsStep(this->ID, dt, stepping_foot);
 
-        // Apply continuous lateral force for forward momentum
         // This works in conjunction with the stepping system
         sf::Vector2f lateral_force(0.0f, 0.0f);
-        float forceMultiplier = 0.8f; // PHYSICS FIX: Increased from 0.4f to compensate for reduced move_force
+        float forceMultiplier = 1.2f; // ENHANCED: Increased from 0.8f for better movement responsiveness
 
         if (leftPressed && rightPressed)
         {
@@ -517,19 +603,16 @@ void Player::update(float dt)
             lateral_force = sf::Vector2f(move_force * forceMultiplier, 0.0f);
         }
 
-        // Apply lateral force to center of mass for smooth movement
         if (figure.points.size() > 0 && (lateral_force.x != 0.0f || lateral_force.y != 0.0f))
         {
             figure.apply_force(lateral_force, figure.points[0].pos, figure.get_radius() * 1.5f, dt);
         }
 
-        // Update walking animation state
         if (!isWalking)
         {
             startWalking();
         }
 
-        // Set walking direction for animation system
         if (leftPressed && !rightPressed)
         {
             setWalkDirection(-1.0f);
@@ -547,7 +630,6 @@ void Player::update(float dt)
             stopWalking();
         }
 
-        // Apply air resistance when not moving
         if (!isOnGround || (!leftPressed && !rightPressed))
         {
             float dampingFactor = std::exp(-air_drag * dt);
@@ -565,7 +647,6 @@ void Player::update(float dt)
     // STEP 5: Handle jumping with physics-driven mechanics
     if (upPressed && (isOnGround || coyoteTimer > 0.f))
     {
-        // Use the existing jump system which is already well-tuned
         request_jump();
     }
 
@@ -573,9 +654,7 @@ void Player::update(float dt)
     // This is the core system that keeps the character upright and stable
     // figure.applyDynamicBalancing(this->ID, dt); // Disabled for stability testing
 
-    // STEP 7: Apply enhanced postural stability (foundational system)
     // This provides the unconscious balance reflexes that make the character feel natural
-    // if (gangBeastsPhysicsEnabled && figure.hasGangBeastsSettings())
     // {
     //     // Use Gang Beasts enhanced stability with reaction delays and overcompensation
     //     figure.apply_enhanced_postural_stability(this->ID, dt, ground_level);
@@ -597,24 +676,21 @@ void Player::update(float dt)
     }
 
     // STEP 9: Update state tracking and timers
-    // Update coyote timer for jump mechanics
     if (coyoteTimer > 0.f)
     {
         coyoteTimer -= dt;
     }
 
-    // Update ground state detection based on physics results
     bool newGroundState = false;
     if (figure.points.size() > 0)
     {
-        // Check if any foot/ankle is near ground level
         for (const auto &p : figure.points)
         {
             if (p.id == this->ID &&
                 (p.body_part == BODY_PART::FOOT_L || p.body_part == BODY_PART::FOOT_R ||
                  p.body_part == BODY_PART::ANKLE_L || p.body_part == BODY_PART::ANKLE_R))
             {
-                float groundThreshold = 25.0f;
+                float groundThreshold = 5.0f; // FIXED: More accurate ground detection
                 if (p.pos.y >= ground_level - groundThreshold)
                 {
                     newGroundState = true;
@@ -661,7 +737,6 @@ void Player::update(float dt)
         input = locomotionInput; // Update for other systems
     }
 
-    // Update movement state tracking
     int current_move_sign = 0;
     if (leftPressed && !rightPressed)
         current_move_sign = -1;
@@ -674,7 +749,6 @@ void Player::update(float dt)
 
 void Player::updateSimpleControls(float dt)
 {
-    // interpret public `input` (input manager should set this per-player)
     sf::Vector2f moveForce{0.f, 0.f};
     bool wantJump = false;
 
@@ -720,7 +794,6 @@ void Player::updateSimpleControls(float dt)
             figure.apply_force(impulse, figure.points[0].pos, figure.get_radius() * 1.5f, 1.f);
         }
 
-        // compute center-of-mass velocity (verlet velocity = pos - prev_pos)
         float M = 0.f;
         sf::Vector2f com_vel{0.f, 0.f};
         for (auto &p : figure.points)
@@ -747,7 +820,6 @@ void Player::updateSimpleControls(float dt)
             figure.apply_force(sf::Vector2f(Jx, 0.f), figure.points[0].pos, figure.get_radius() * 1.5f, 1.f);
         }
 
-        // small residual nudges to keep soft-body peripheral motion (very small, dt-scaled)
         figure.apply_force(sf::Vector2f(move_sign * move_force * dt * 0.005f, 0.f), figure.points[0].pos, figure.get_radius() * 2.f);
     }
     else
@@ -791,7 +863,6 @@ void Player::updatePhysics(float dt)
     // integrate and satisfy constraints
     figure.update(dt);
 
-    // PROPER IMPULSE-BASED GROUND COLLISION (like standard game physics)
     if (figure.points.size() > 1)
     {
         bool anyFootGrounded = false;
@@ -803,7 +874,6 @@ void Player::updatePhysics(float dt)
         {
             auto &p = figure.points[i];
 
-            // Check for penetration
             if (p.pos.y > groundY)
             {
                 // POSITION CORRECTION: Project out of ground
@@ -816,30 +886,37 @@ void Player::updatePhysics(float dt)
 
                 if (relativeVelY > 0.1f) // Only if moving into ground
                 {
-                    // Calculate impulse magnitude: J = -(1 + e) * vrel
                     float impulseMagnitude = -(1.0f + restitution) * relativeVelY * p.mass;
 
-                    // Apply impulse (change in momentum)
                     sf::Vector2f impulse = {0.f, impulseMagnitude};
 
                     // Convert impulse to position change for Verlet integration
                     sf::Vector2f velocityChange = impulse / p.mass;
                     p.prev_pos.y = p.pos.y - velocityChange.y * dt;
 
-                    // FRICTION: Apply static friction to horizontal motion
+                    // ENHANCED FRICTION: Apply comprehensive friction system
                     bool isFoot = (p.body_part == BODY_PART::FOOT_L || p.body_part == BODY_PART::FOOT_R ||
                                    p.body_part == BODY_PART::ANKLE_L || p.body_part == BODY_PART::ANKLE_R);
 
-                    if (isFoot && std::abs(velocity.x) < 50.f) // Static friction threshold
+                    if (isFoot)
                     {
-                        // Lock foot horizontally when grounded (like real physics)
-                        p.prev_pos.x = p.pos.x - velocity.x * dt * (1.f - staticFriction);
-                        anyFootGrounded = true;
+                        // Strong friction for feet to prevent sliding
+                        if (std::abs(velocity.x) < 50.f) // Static friction threshold
+                        {
+                            // High static friction - almost lock feet when grounded
+                            p.prev_pos.x = p.pos.x - velocity.x * dt * (1.f - staticFriction * 1.2f);
+                            anyFootGrounded = true;
+                        }
+                        else
+                        {
+                            // Kinetic friction for sliding feet
+                            p.prev_pos.x = p.pos.x - velocity.x * dt * (1.f - staticFriction * 0.7f);
+                        }
                     }
                     else
                     {
-                        // Kinetic friction for sliding
-                        p.prev_pos.x = p.pos.x - velocity.x * dt * (1.f - staticFriction * 0.5f);
+                        // Moderate friction for other body parts touching ground
+                        p.prev_pos.x = p.pos.x - velocity.x * dt * (1.f - staticFriction * 0.4f);
                     }
                 }
 
@@ -850,7 +927,6 @@ void Player::updatePhysics(float dt)
         // STABILITY ENHANCEMENT: When feet are grounded, stabilize the figure
         if (anyFootGrounded)
         {
-            // Find feet positions for base of support calculation
             sf::Vector2f leftFoot, rightFoot;
             bool hasLeftFoot = false, hasRightFoot = false;
 
@@ -872,7 +948,6 @@ void Player::updatePhysics(float dt)
             {
                 sf::Vector2f supportCenter = (leftFoot + rightFoot) * 0.5f;
 
-                // Apply stabilizing force to keep upper body over base of support
                 for (auto &p : figure.points)
                 {
                     if (p.body_part == BODY_PART::HEAD || p.body_part == BODY_PART::SPINE_UP ||
@@ -881,7 +956,6 @@ void Player::updatePhysics(float dt)
                         float offset = p.pos.x - supportCenter.x;
                         if (std::abs(offset) > 10.f) // Only correct significant imbalance
                         {
-                            // Apply restoring force proportional to offset
                             sf::Vector2f restoring = {-offset * 150.f * dt, 0.f};
                             p.acc += restoring / p.mass;
                         }
@@ -902,7 +976,6 @@ void Player::updateWalkingAnimation(float dt)
     float leftLegPhase = cycle;
     float rightLegPhase = -cycle; // opposite phase
 
-    // Get leg joint indices
     int leftHip = figure.find_part_index(ID, BODY_PART::HIP_L);
     int rightHip = figure.find_part_index(ID, BODY_PART::HIP_R);
     int leftKnee = figure.find_part_index(ID, BODY_PART::KNEE_L);
@@ -913,7 +986,6 @@ void Player::updateWalkingAnimation(float dt)
 
     if (leftHip > 0 && rightHip > 0 && leftKnee > 0 && rightKnee > 0 && leftFoot > 0 && rightFoot > 0 && pelvis > 0)
     {
-        // Apply a small walking impulse ONLY at the start of the walk cycle to give
         // initial forward momentum. Previously we applied an instantaneous impulse
         // every frame which accumulated and caused large overshoot when holding
         // movement keys. Keep jump behavior unchanged (jump impulses are event-driven).
@@ -924,43 +996,61 @@ void Player::updateWalkingAnimation(float dt)
             // to detect the first frame.
             if (walkTimer <= dt * 1.5f)
             {
-                float impulseScale = 0.15f; // PHYSICS FIX: Further reduced from 0.35f to prevent overshoot
+                float impulseScale = 0.25f; // ENHANCED: Increased from 0.15f for better movement
                 sf::Vector2f walkingImpulse = sf::Vector2f(walkDirection * walkForwardSpeed * impulseScale, 0.0f);
                 figure.apply_force(walkingImpulse, figure.points[0].pos, figure.get_radius() * 1.5f, 1.0f);
             }
             else
             {
-                // Otherwise apply a gentle continuous nudge as a force (not impulse)
-                float continuousScale = 0.08f; // PHYSICS FIX: Reduced from 0.18f to prevent accumulation
+                float continuousScale = 0.15f; // ENHANCED: Increased from 0.08f for better movement
                 sf::Vector2f continuousForce = sf::Vector2f(walkDirection * walkForwardSpeed * continuousScale * dt, 0.0f);
                 figure.apply_force(continuousForce, figure.points[0].pos, figure.get_radius() * 1.5f);
             }
         }
 
-        // Get current positions
         sf::Vector2f leftHipPos = figure.points[leftHip].pos;
         sf::Vector2f rightHipPos = figure.points[rightHip].pos;
 
-        // Walking step parameters
-        float stepHeight = 20.0f;
-        float stepLength = 30.0f;
+        // Walking step parameters - INCREASED for better movement
+        float stepHeight = 35.0f; // Increased from 20.0f
+        float stepLength = 50.0f; // Increased from 30.0f
 
-        // Left leg movement (adjusted for forward walking)
+        // ENHANCED: Apply forces to entire leg chain for natural walking
+        // Left leg movement - full chain coordination
+        sf::Vector2f leftHipTarget = leftHipPos + sf::Vector2f(
+                                                      stepLength * leftLegPhase * 0.2f + walkDirection * 8.0f,
+                                                      -5.0f + stepHeight * 0.3f * std::max(0.0f, leftLegPhase));
+
+        sf::Vector2f leftKneeTarget = leftHipPos + sf::Vector2f(
+                                                       stepLength * leftLegPhase * 0.4f + walkDirection * 12.0f,
+                                                       30.0f + stepHeight * 0.6f * std::max(0.0f, leftLegPhase));
+
         sf::Vector2f leftFootTarget = leftHipPos + sf::Vector2f(
-                                                       stepLength * leftLegPhase * 0.3f + walkDirection * 10.0f,
-                                                       60.0f + stepHeight * std::max(0.0f, leftLegPhase) // lift foot when moving forward
-                                                   );
+                                                       stepLength * leftLegPhase * 0.5f + walkDirection * 15.0f,
+                                                       60.0f + stepHeight * std::max(0.0f, leftLegPhase));
 
-        // Right leg movement (adjusted for forward walking)
+        // Right leg movement - full chain coordination
+        sf::Vector2f rightHipTarget = rightHipPos + sf::Vector2f(
+                                                        stepLength * rightLegPhase * 0.2f + walkDirection * 8.0f,
+                                                        -5.0f + stepHeight * 0.3f * std::max(0.0f, rightLegPhase));
+
+        sf::Vector2f rightKneeTarget = rightHipPos + sf::Vector2f(
+                                                         stepLength * rightLegPhase * 0.4f + walkDirection * 12.0f,
+                                                         30.0f + stepHeight * 0.6f * std::max(0.0f, rightLegPhase));
+
         sf::Vector2f rightFootTarget = rightHipPos + sf::Vector2f(
-                                                         stepLength * rightLegPhase * 0.3f + walkDirection * 10.0f,
-                                                         60.0f + stepHeight * std::max(0.0f, rightLegPhase) // lift foot when moving forward
-                                                     );
+                                                         stepLength * rightLegPhase * 0.5f + walkDirection * 15.0f,
+                                                         60.0f + stepHeight * std::max(0.0f, rightLegPhase));
 
-        // Apply gentle walking targets (work WITH stability system)
-        // PHYSICS FIX: Reduced PD gains from 150.0f/20.0f to prevent instability
-        figure.set_part_target(ID, BODY_PART::FOOT_L, leftFootTarget, 25.0f, 3.0f);  // Much gentler
-        figure.set_part_target(ID, BODY_PART::FOOT_R, rightFootTarget, 25.0f, 3.0f); // Much gentler
+        float targetKp = 40.0f; // Increased from 25.0f
+        float targetKd = 8.0f;  // Increased from 3.0f
+
+        figure.set_part_target(ID, BODY_PART::HIP_L, leftHipTarget, targetKp * 0.5f, targetKd * 0.5f);
+        figure.set_part_target(ID, BODY_PART::HIP_R, rightHipTarget, targetKp * 0.5f, targetKd * 0.5f);
+        figure.set_part_target(ID, BODY_PART::KNEE_L, leftKneeTarget, targetKp * 0.7f, targetKd * 0.7f);
+        figure.set_part_target(ID, BODY_PART::KNEE_R, rightKneeTarget, targetKp * 0.7f, targetKd * 0.7f);
+        figure.set_part_target(ID, BODY_PART::FOOT_L, leftFootTarget, targetKp, targetKd);
+        figure.set_part_target(ID, BODY_PART::FOOT_R, rightFootTarget, targetKp, targetKd);
 
         // Slight knee bend during walk cycle
         figure.animate_skeleton_spring(ID, BODY_PART::HIP_L, BODY_PART::KNEE_L,
@@ -968,7 +1058,6 @@ void Player::updateWalkingAnimation(float dt)
         figure.animate_skeleton_spring(ID, BODY_PART::HIP_R, BODY_PART::KNEE_R,
                                        45.0f + 10.0f * std::abs(rightLegPhase), 0.3f);
 
-        // Add subtle body sway for natural walking
         if (pelvis > 0)
         {
             sf::Vector2f sway = sf::Vector2f(std::sin(walkTimer * walkCycleSpeed * 2.0f) * 5.0f, 0.0f);
@@ -983,7 +1072,6 @@ void Player::updateWavingAnimation(float dt)
 {
     waveTimer += dt;
 
-    // Find hand and shoulder
     int rightHand = figure.find_part_index(ID, BODY_PART::HAND_R);
     int rightShoulder = figure.find_part_index(ID, BODY_PART::SHO_R);
     int rightElbow = figure.find_part_index(ID, BODY_PART::ELB_R);
@@ -999,19 +1087,15 @@ void Player::updateWavingAnimation(float dt)
         float angle = waveTimer * freq;
         sf::Vector2f offset = sf::Vector2f(std::cos(angle) * amplitude, std::sin(angle) * amplitude * 0.6f);
 
-        // Position hand relative to shoulder, not constrained to torso
         sf::Vector2f baseHandPos = shoulderPos + sf::Vector2f(70.0f, -40.0f); // Further out from shoulder
         sf::Vector2f handTarget = baseHandPos + offset;
 
         // PHYSICS FIX: Much gentler waving forces to prevent flight
-        // Apply force directly to the hand particle but with reasonable magnitude
         sf::Vector2f handCurrentPos = figure.points[rightHand].pos;
         sf::Vector2f handForce = (handTarget - handCurrentPos) * 8.0f; // MAJOR FIX: Reduced from 50.0f
 
-        // Apply as impulse (dt = 1.0f) to overcome constraints but not launch the player
         figure.apply_force(handForce, handCurrentPos, 15.0f, 1.0f);
 
-        // Apply progressive forces down the arm chain with gentler magnitudes
         if (rightWrist > 0)
         {
             sf::Vector2f wristTarget = shoulderPos + (handTarget - shoulderPos) * 0.75f;
@@ -1057,7 +1141,6 @@ void Player::clearWaveTargets()
     figure.clear_part_target(ID, BODY_PART::ELB_R);
 }
 
-// 🎮 GANG BEASTS EVOLUTION: Settings Management Implementation
 
 bool Player::loadGangBeastsSettings(const std::string &settingsPath)
 {

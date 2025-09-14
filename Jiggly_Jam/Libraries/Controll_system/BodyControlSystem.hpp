@@ -43,7 +43,6 @@ protected:
     bool balanceAssistEnabled = false;
     float globalStrengthMultiplier = 1.0f;
 
-    // Helper functions for all schemes
     void initializeBodyPart(BODY_PART part, float maxStamina = 100.0f, float drainRate = 15.0f, float recoveryRate = 25.0f);
     void updateStamina(BODY_PART part, bool isActive, float dt);
     void applyForceToBodyPart(Jelly &body, uint64_t playerId, BODY_PART part, sf::Vector2f force, float strength);
@@ -171,7 +170,6 @@ public:
     void previousScheme();
     ControlSchemeBase *getCurrentScheme() const;
 
-    // Settings
     void setDebugMode(bool enabled) { debugMode = enabled; }
     void setTutorialMode(bool enabled) { tutorialMode = enabled; }
     bool isDebugMode() const { return debugMode; }

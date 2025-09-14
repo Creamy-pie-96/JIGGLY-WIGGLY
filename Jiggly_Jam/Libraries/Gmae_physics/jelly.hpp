@@ -10,7 +10,7 @@ enum class FORCE_TYPE
 };
 enum class BODY_PART
 {
-    // Core skeleton joints (canonical 20-joint rig)
+    NONE, // Flesh points (not skeleton) - MUST BE FIRST for default initialization
     HEAD,
     NECK,
     SPINE_UP,  // Upper spine/chest
@@ -34,8 +34,7 @@ enum class BODY_PART
     HIP_R,     // Right Hip
     KNEE_R,    // Right Knee
     ANKLE_R,   // Right Ankle
-    FOOT_R,    // Right Foot
-    NONE       // Flesh points (not skeleton)
+    FOOT_R     // Right Foot
 };
 struct Point
 {
@@ -73,7 +72,6 @@ public:
     std::vector<Point> points;
     std::vector<Spring> springs;
     int iterations = 50; // FIXED: Reduced from 25 to prevent overcorrection oscillations
-    // global stiffness multiplier for constraint correction (0..1)
     float stiffness = 0.8f; // Stronger for human figures
     // separate multipliers
     float stiffness_ring = 0.6f;   // peripheral-peripheral springs
@@ -84,8 +82,7 @@ public:
     float stiffness_flesh = 0.3f; // Soft tissue (flexible)
     // internal pressure (0 = off). Positive -> expansion force
     float pressure = 0.5f; // Reduced to avoid conflict with grounding
-    // damping multiplier applied to velocity (0..1, closer to 1 more bouncy)
-    float damping = 0.96f; // Slightly more damping for stability
+    float damping = 0.98f; // ENHANCED: Reduced damping from 0.96f to allow better movement
     // target area for pressure preservation
     float targetArea = 0.f;
     void update(float dt);
@@ -106,7 +103,6 @@ public:
     void create_from_points_resampled(const std::vector<std::pair<sf::Vector2f, BODY_PART>> &pts, int targetPerimeterPoints, uint64_t id);
     // create a filled soft-body by sampling the interior of a polygon with a triangular lattice
     // polygon: ordered peripheral points
-    // spacing: approximate distance between interior lattice points (pixels)
     void create_filled_from_polygon(const std::vector<sf::Vector2f> &pts, float spacing = 12.f);
     // overload: accept perimeter points paired with BODY_PART tags and an owner id
     void create_filled_from_polygon(const std::vector<std::pair<sf::Vector2f, BODY_PART>> &pts, float spacing, uint64_t id);
@@ -135,7 +131,6 @@ public:
     };
     std::vector<PartTarget> partTargets;
 
-    // per-jelly owner id (used when tagging points/springs for players)
     uint64_t id = 0;
     // default stiffness for skeleton edges added by add_edge
     float skeletonStiffness = 1.5f;
@@ -170,6 +165,28 @@ public:
     // 🎮 GANG BEASTS EVOLUTION: Settings Management
     void setGangBeastsSettings(const GangBeastsSettings::GangBeastsPhysicsSettings *settings);
     bool hasGangBeastsSettings() const { return gangBeastsSettings != nullptr; }
+
+    // Debug Information Getters
+    struct DebugInfo
+    {
+        sf::Vector2f center_of_mass{0.0f, 0.0f};
+        sf::Vector2f base_of_support{0.0f, 0.0f};
+        std::vector<sf::Vector2f> foot_positions;
+        std::vector<sf::Vector2f> stability_forces;
+        std::vector<std::pair<sf::Vector2f, float>> mass_visualization; // position, mass
+        float imbalance_magnitude = 0.0f;
+        bool support_legs[2] = {true, true}; // [0] = right leg, [1] = left leg
+        bool left_foot_grounded = false;
+        bool right_foot_grounded = false;
+        bool is_walking = false;
+        bool is_grounded = false;
+        float step_phase = 0.0f;
+    };
+
+    DebugInfo getDebugInfo(uint64_t owner_id) const;
+    sf::Vector2f getBaseOfSupport(uint64_t owner_id) const;
+    std::vector<sf::Vector2f> getStabilityForces(uint64_t owner_id) const;
+    bool isFootGrounded(uint64_t owner_id, BODY_PART foot, float ground_y) const;
 
     // Step 1.1: Physics Personality Methods
     float getSkeletonStiffnessMultiplier(BODY_PART partA, BODY_PART partB) const;
@@ -245,7 +262,7 @@ public:
         float stride_completion = 0.0f;
         sf::Vector2f last_step_position{0.0f, 0.0f};
 
-        BODY_PART support_leg = BODY_PART::FOOT_L; // Which leg is currently supporting
+        bool support_legs[2] = {true, true}; // [0] = right leg, [1] = left leg. Both true when stationary
         float ground_contact_timer = 0.0f;
 
         sf::Vector2f center_of_mass{0.0f, 0.0f};
@@ -307,5 +324,4 @@ public:
     Jelly(int n, float r, sf::Vector2f c);
 };
 
-// Helper function for unique ID generation
 uint64_t generateID();

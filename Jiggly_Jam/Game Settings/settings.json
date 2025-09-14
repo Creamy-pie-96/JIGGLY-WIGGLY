@@ -189,23 +189,23 @@
         "step_cycle_duration": 1.0,
         "comment_duration": "Base time for a full step cycle (left + right)",
 
-        "step_height": 25.0,
-        "comment_height": "How high feet lift during steps (pixels)",
+        "step_height": 45.0,
+        "comment_height": "How high feet lift during steps (pixels) - increased for better movement",
 
-        "step_length": 40.0,
-        "comment_length": "Forward distance covered per step (pixels)",
+        "step_length": 80.0,
+        "comment_length": "Forward distance covered per step (pixels) - increased for better movement",
 
         "step_wobble_amount": 0.1,
         "comment_wobble": "Extra wobble/randomness in stepping (0.0-1.0)",
 
-        "lift_force_strength": 35.0,
-        "comment_lift": "Force applied to lift foot during step",
+        "lift_force_strength": 80.0,
+        "comment_lift": "Force applied to lift foot during step - increased for better movement",
 
-        "swing_force_strength": 25.0,
-        "comment_swing": "Force applied to swing leg forward",
+        "swing_force_strength": 60.0,
+        "comment_swing": "Force applied to swing leg forward - increased for better movement",
 
-        "plant_force_strength": 50.0,
-        "comment_plant": "Force applied when foot contacts ground",
+        "plant_force_strength": 100.0,
+        "comment_plant": "Force applied when foot contacts ground - increased for better movement",
 
         "step_timing": {
           "lift_phase_ratio": 0.2,
@@ -290,13 +290,13 @@
 
     "debug": {
       "description": "Debug and visualization settings",
-      "show_stability_forces": false,
-      "show_spring_stress": false,
-      "show_mass_distribution": false,
-      "show_spring_contexts": false,
-      "show_spring_animations": false,
-      "show_spring_strength_modulation": false,
-      "log_physics_events": false,
+      "show_stability_forces": true,
+      "show_spring_stress": true,
+      "show_mass_distribution": true,
+      "show_spring_contexts": true,
+      "show_spring_animations": true,
+      "show_spring_strength_modulation": true,
+      "log_physics_events": true,
       "log_spring_events": false,
       "performance_profiling": false
     }

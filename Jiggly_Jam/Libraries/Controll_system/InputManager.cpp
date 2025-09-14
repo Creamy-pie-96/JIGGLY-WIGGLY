@@ -4,13 +4,11 @@
 
 void InputManager::initializeDefaultMappings()
 {
-    // Default keyboard mappings (Scheme A base)
     buttonMappings[BUTTON_ACTION::MOVE_UP] = {sf::Keyboard::W, -1, -1, 0.5f, false};
     buttonMappings[BUTTON_ACTION::MOVE_DOWN] = {sf::Keyboard::S, -1, -1, 0.5f, false};
     buttonMappings[BUTTON_ACTION::MOVE_LEFT] = {sf::Keyboard::A, -1, -1, 0.5f, false};
     buttonMappings[BUTTON_ACTION::MOVE_RIGHT] = {sf::Keyboard::D, -1, -1, 0.5f, false};
 
-    // Body part controls (full keyboard layout)
     buttonMappings[BUTTON_ACTION::ACTION_1] = {sf::Keyboard::Q, -1, -1, 0.5f, false}; // Left shoulder up
     buttonMappings[BUTTON_ACTION::ACTION_2] = {sf::Keyboard::A, -1, -1, 0.5f, false}; // Left shoulder down
     buttonMappings[BUTTON_ACTION::ACTION_3] = {sf::Keyboard::W, -1, -1, 0.5f, false}; // Left elbow extend
@@ -60,7 +58,6 @@ void InputManager::update()
         prevPressed[action] = (state == BUTTON_STATE::PRESSED || state == BUTTON_STATE::HELD);
     }
 
-    // Update button states
     for (auto &[action, mapping] : buttonMappings)
     {
         bool currentlyPressed = false;

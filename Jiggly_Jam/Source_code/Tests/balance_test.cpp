@@ -7,13 +7,10 @@ int main()
 {
     std::cout << "=== BALANCE FIX TEST ===" << std::endl;
 
-    // Create a simple player
     Player player("red"); // Using string constructor
 
-    // Set ground level for proper balance testing
     player.set_ground_level(400.0f); // Ground at Y=400
 
-    // Spawn the player at a test position (above ground)
     player.spawn({200.0f, 300.0f});
 
     std::cout << "Player created with " << player.getPointCount() << " points" << std::endl;

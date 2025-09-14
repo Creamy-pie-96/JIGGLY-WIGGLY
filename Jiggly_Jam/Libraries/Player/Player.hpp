@@ -35,11 +35,10 @@ protected:
     float health;
     bool alive;
 
-    // Traditional movement system (kept for compatibility)
-    // PHYSICS SCALING FIX: Reduced all forces to work with realistic mass values (1-3kg range)
-    float move_force = 15.f;   // Reduced from 200.f - more realistic for 1-3kg masses
-    float move_impulse = 25.f; // Reduced from 400.f - prevents collapse on direction change
-    float jump_force = 45.f;   // Reduced from 600.f - maintains good jump feel
+    // ENHANCED: Increased forces for better movement responsiveness
+    float move_force = 25.f;   // Increased from 15.f for better movement
+    float move_impulse = 40.f; // Increased from 25.f for better responsiveness
+    float jump_force = 120.f;  // Increased for stronger jump height (was 75.f)
     float walk_speed = 2.2f;
     float coyoteTimer = 0.f;
     int last_move_sign = 0; // -1,0,1
@@ -75,7 +74,6 @@ private:
     float ground_friction = 0.6f;     // 0..1, larger = more friction (slows horizontal vel)
 
 public:
-    // Legacy input system (for simple controls)
     MOVE_TYPE input = MOVE_TYPE::NONE;
     MOVE_TYPE last_input = MOVE_TYPE::NONE;
 
@@ -130,7 +128,6 @@ public:
     void updateSimpleControls(float dt); // Legacy control system
     void updatePhysics(float dt);        // Common physics update
     void set_onGround(bool g);
-    // explicit edge-triggered jump request (call from input manager on button-down)
     void request_jump();
 
     // 🚶 MOVEMENT ANIMATIONS
@@ -170,7 +167,6 @@ public:
     void drawControlDebug(sf::RenderWindow &window);
 };
 
-// Updated constructor implementation
 inline Player::Player(std::string c, sf::RenderWindow *window)
     : velocity(0.f, 0.f), acceleration(0.f, 0.f), height(100.f), weight(70.f),
       alive(true), onGround(true), health(100.f), color(c)
@@ -178,7 +174,6 @@ inline Player::Player(std::string c, sf::RenderWindow *window)
     ID = generateID();
     create_figure();
 
-    // Initialize advanced control system if window provided
     if (window != nullptr)
     {
         bodyControlSystem = std::make_unique<BodyControlSystem>(window);
@@ -207,7 +202,6 @@ inline void Player::drawControlDebug(sf::RenderWindow &window)
     }
 }
 
-// PlayerControl: a Player subclass that adds mapped part controls (e.g., waving)
 class PlayerControl : public Player
 {
 public:
@@ -226,7 +220,6 @@ public:
 
     void update(float dt)
     {
-        // if waving, compute target for right hand (relative to shoulder)
         if (waving && figure.points.size())
         {
             int sho = figure.find_part_index(ID, BODY_PART::SHO_R);

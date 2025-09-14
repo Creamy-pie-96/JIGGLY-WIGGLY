@@ -7,7 +7,6 @@
 #include <unordered_map>
 
 // Simple JSON-like parser for Gang Beasts physics settings
-// Handles nested objects and basic data types for our physics parameters
 
 namespace GangBeastsSettings
 {
@@ -28,7 +27,6 @@ namespace GangBeastsSettings
         {
             float base_stiffness_multiplier = 0.65f; // Reduces overall skeleton stiffness by 35%
 
-            // Individual joint looseness factors (0.0 = loose, 1.0 = rigid)
             float spine_joints = 0.7f;  // Spine flexibility for body sway
             float arm_joints = 0.5f;    // Loose arms for Gang Beasts feel
             float leg_joints = 0.8f;    // Legs need some rigidity for walking

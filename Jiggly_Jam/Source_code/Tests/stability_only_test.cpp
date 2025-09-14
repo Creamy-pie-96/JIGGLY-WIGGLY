@@ -7,14 +7,11 @@ int main()
     sf::RenderWindow window(sf::VideoMode(W, H), "Stability Only Test - No Controls");
     window.setFramerateLimit(60);
 
-    // Create player WITH advanced controls but DON'T use them
     Player player("test", &window);
 
-    // CRITICAL: Set ground level for stable physics (same as debug_springs_test)
     float ground_y = H - 100.0f;
     player.set_ground_level(ground_y);
 
-    // Spawn player ABOVE ground for proper settling (same as debug_springs_test)
     player.spawn({W / 2.0f, 200.0f});
 
     // DISABLE advanced controls to test pure stability
@@ -53,19 +50,15 @@ int main()
             accumulator -= dt;
         }
 
-        // Render
         window.clear(sf::Color(40, 50, 60));
 
-        // Draw ground
         sf::RectangleShape ground(sf::Vector2f(W, 100));
         ground.setPosition(0, H - 100);
         ground.setFillColor(sf::Color(100, 150, 100));
         window.draw(ground);
 
-        // Draw player figure
         auto figure = player.Figure();
 
-        // Draw springs
         for (const auto &spring : figure.springs)
         {
             if (spring.p1 >= 0 && spring.p1 < (int)figure.points.size() &&
@@ -81,7 +74,6 @@ int main()
             }
         }
 
-        // Draw points
         for (const auto &point : figure.points)
         {
             sf::CircleShape dot(4.0f);

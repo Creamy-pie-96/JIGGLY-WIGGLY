@@ -27,7 +27,6 @@ void createHumanFigure(Jelly &figure, const sf::Vector2f &origin, const float &h
     figure.add_point(origin + sf::Vector2f(20.0f, 105.0f) * s, BODY_PART::FOOT_R);
     figure.add_point(origin + sf::Vector2f(-20.0f, 105.0f) * s, BODY_PART::FOOT_L);
 
-    // Add skeleton springs to connect the points, which define the structure of the figure
     figure.add_edge(BODY_PART::HEAD, BODY_PART::NECK);
     figure.add_edge(BODY_PART::NECK, BODY_PART::SHO_R);
     figure.add_edge(BODY_PART::NECK, BODY_PART::SHO_L);
@@ -51,7 +50,6 @@ void createHumanFigure(Jelly &figure, const sf::Vector2f &origin, const float &h
 // Function to draw the jelly figure with thick lines and a head
 void drawJellyFigure(sf::RenderWindow &window, const Jelly &figure)
 {
-    // Draw the torso as a filled rectangle
     sf::RectangleShape torso({10.f, 60.f});
     torso.setOrigin({5.f, 30.f});
     torso.setPosition(figure.points[figure.part_index.at(BODY_PART::NECK)].pos);
@@ -59,7 +57,6 @@ void drawJellyFigure(sf::RenderWindow &window, const Jelly &figure)
     torso.setFillColor(sf::Color(100, 100, 255));
     window.draw(torso);
 
-    // Draw limbs and head as thick lines or rectangles
     for (const auto &s : figure.springs)
     {
         sf::Vector2f p1 = figure.points[s.p1].pos;
@@ -77,7 +74,6 @@ void drawJellyFigure(sf::RenderWindow &window, const Jelly &figure)
         window.draw(line);
     }
 
-    // Draw the head as a filled circle
     sf::CircleShape head(15.f);
     head.setOrigin({15.f, 15.f});
     head.setPosition(figure.points[figure.part_index.at(BODY_PART::HEAD)].pos);
@@ -111,26 +107,20 @@ int main()
             if (event.type == sf::Event::Closed)
                 window.close();
 
-            // Handle jump input (Spacebar press)
             if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Space)
             {
-                // Check if the figure is on the ground before allowing it to jump
                 if (onGround)
                 {
-                    // Apply an upward impulse force to the torso
                     myHumanFigure.apply_force({0.f, -100.f}, myHumanFigure.points[myHumanFigure.part_index.at(BODY_PART::NECK)].pos, 50.f, dt.asSeconds());
                     onGround = false; // The figure is now in the air
                 }
             }
         }
 
-        // Apply a downward force (gravity)
         myHumanFigure.apply_force({0.f, 9.8f * 10.f});
 
-        // Update the figure's physics
         myHumanFigure.update(dt.asSeconds());
 
-        // Check for ground collision and reset `onGround` flag
         onGround = false;
         for (auto &p : myHumanFigure.points)
         {

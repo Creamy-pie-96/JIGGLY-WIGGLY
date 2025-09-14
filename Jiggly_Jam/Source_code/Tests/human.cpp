@@ -27,7 +27,6 @@ public:
     {
         s = h / 175.f; // Scale factor based on height
 
-        // Define dimensions for each body part relative to the scale
         float headRadius = 15.f * s;
         float limbWidth = 8.f * s;
         float torsoWidth = 25.f * s;
@@ -46,29 +45,25 @@ public:
         torso.setSize(sf::Vector2f(torsoWidth, torsoHeight));
         torso.setPosition(neck.getPosition().x + limbWidth / 2 - torsoWidth / 2, neck.getPosition().y + neck.getSize().y);
 
-        // Arms (slightly rotated outward to form a 'V' shape)
         rightArm.setSize(sf::Vector2f(limbWidth, limbLength));
         rightArm.setOrigin(limbWidth / 2, 0);
         rightArm.setPosition(torso.getPosition().x + torsoWidth, torso.getPosition().y);
-        rightArm.setRotation(-15); // Rotated slightly outward
+        rightArm.setRotation(-15);
 
         leftArm.setSize(sf::Vector2f(limbWidth, limbLength));
         leftArm.setOrigin(limbWidth / 2, 0);
         leftArm.setPosition(torso.getPosition().x, torso.getPosition().y);
-        leftArm.setRotation(15); // Rotated slightly outward
+        leftArm.setRotation(15);
 
         // Hands
         rightHand.setSize(sf::Vector2f(handFootSize, handFootSize));
         rightHand.setOrigin(handFootSize / 2, 0);
-        // Position hands relative to the end of the rotated arms
         rightHand.setPosition(rightArm.getGlobalBounds().left + rightArm.getGlobalBounds().width / 2, rightArm.getGlobalBounds().top + rightArm.getGlobalBounds().height);
 
         leftHand.setSize(sf::Vector2f(handFootSize, handFootSize));
         leftHand.setOrigin(handFootSize / 2, 0);
-        // Position hands relative to the end of the rotated arms
         leftHand.setPosition(leftArm.getGlobalBounds().left + leftArm.getGlobalBounds().width / 2, leftArm.getGlobalBounds().top + leftArm.getGlobalBounds().height);
 
-        // Legs (straight)
         rightLeg.setSize(sf::Vector2f(limbWidth, limbLength));
         rightLeg.setOrigin(limbWidth / 2, 0);
         rightLeg.setPosition(torso.getPosition().x + torsoWidth, torso.getPosition().y + torsoHeight);
@@ -88,7 +83,6 @@ public:
         leftFoot.setOrigin(handFootSize * 0.75f, 0);
         leftFoot.setPosition(leftLeg.getPosition().x, leftLeg.getPosition().y + limbLength);
 
-        // Set all shapes to a red fill color
         head.setFillColor(sf::Color::Red);
         neck.setFillColor(sf::Color::Red);
         torso.setFillColor(sf::Color::Red);

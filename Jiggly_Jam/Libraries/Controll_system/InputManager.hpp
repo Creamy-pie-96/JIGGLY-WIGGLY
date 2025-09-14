@@ -20,7 +20,6 @@ enum class BUTTON_ACTION
     MOVE_LEFT,
     MOVE_RIGHT,
 
-    // Body part controls (generic - mapped by control schemes)
     ACTION_1,
     ACTION_2,
     ACTION_3,
@@ -95,10 +94,8 @@ public:
         initializeDefaultMappings();
     }
 
-    // Initialize default control mappings
     void initializeDefaultMappings();
 
-    // Update input states each frame
     void update();
 
     // Query button states
@@ -117,7 +114,6 @@ public:
     void setActiveDevice(INPUT_DEVICE device) { activeDevice = device; }
     INPUT_DEVICE getActiveDevice() const { return activeDevice; }
 
-    // Save/load control schemes
     void saveScheme(const std::string &filename);
     void loadScheme(const std::string &filename);
 };

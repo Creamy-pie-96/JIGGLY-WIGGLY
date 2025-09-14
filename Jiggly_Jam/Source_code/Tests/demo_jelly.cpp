@@ -11,11 +11,9 @@ int main()
     sf::RenderWindow window(sf::VideoMode(W, H), "Jelly Demo - human-ish shape");
     window.setFramerateLimit(60);
 
-    // create a human-ish outline (ordered peripheral points)
     std::vector<sf::Vector2f> human;
     sf::Vector2f origin(500.f, 250.f);
     float scale = 1.0f;
-    // head (top)
     human.push_back(origin + sf::Vector2f(-18, -70) * scale);
     human.push_back(origin + sf::Vector2f(18, -70) * scale);
     // shoulders
@@ -39,7 +37,6 @@ int main()
     const float spacing = 8.f; // smaller = more points/wigglier, larger = cheaper
     jelly.create_filled_from_polygon(human, spacing);
 
-    // tune masses and locked points lightly (lock top of head for stability test)
     if (jelly.points.size() > 1)
     {
         // make center slightly heavier
@@ -53,7 +50,6 @@ int main()
     sf::RectangleShape ground(sf::Vector2f((float)W, 50.f));
     ground.setPosition(0.f, H - 50.f);
     ground.setFillColor(sf::Color(100, 200, 100));
-    // ground contact friction (0..1, larger = more friction)
     const float ground_friction = 0.5f;
 
     // fixed timestep
@@ -80,7 +76,6 @@ int main()
                 jelly.apply_force(sf::Vector2f(0.f, -jump_impulse), jelly.points[0].pos, jelly.get_radius() * 1.5f, dt);
             }
 
-            // adjust stiffness using + and - (handle keypad + and regular)
             if (ev.type == sf::Event::KeyPressed && (ev.key.code == sf::Keyboard::Add || ev.key.code == sf::Keyboard::Equal))
             {
                 jelly.stiffness = std::min(1.f, jelly.stiffness + 0.05f);
@@ -188,7 +183,6 @@ int main()
         jelly.draw(window);
 
         // instructions
-        // (avoid font dependency; simple indicator via console once)
         static bool shown = false;
         if (!shown)
         {

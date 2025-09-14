@@ -18,7 +18,6 @@ int main()
         Player player("test", &window);
         std::cout << "✅ Player created successfully" << std::endl;
 
-        // Check if advanced controls are enabled
         if (player.isUsingAdvancedControls())
         {
             std::cout << "✅ Advanced controls are enabled" << std::endl;
@@ -157,7 +156,6 @@ int main()
             }
         }
 
-        // Handle movement input
         MOVE_TYPE move = MOVE_TYPE::NONE;
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
             move = MOVE_TYPE::LEFT;
@@ -174,13 +172,11 @@ int main()
             hasInput = true;
         }
 
-        // Update physics
         demoPlayer.update(0.016f);
 
         // Simple rendering
         window.clear(sf::Color(30, 30, 40));
 
-        // Draw player figure
         auto figure = demoPlayer.Figure();
         for (const auto &point : figure.points)
         {
@@ -190,7 +186,6 @@ int main()
             window.draw(dot);
         }
 
-        // Draw control debug info
         demoPlayer.drawControlDebug(window);
 
         window.display();
